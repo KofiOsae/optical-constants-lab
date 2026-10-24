@@ -196,8 +196,6 @@ def custom_fit():
             result['note']='Phase I weak-absorption Fresnel model; supports air/film/air and film on semi-infinite transparent substrate. Original R6G benchmark is freestanding.'
             return jsonify(result)
         if request.form.get('reconstruction_model')=='historical_logk':
-            if settings.fit_thickness:
-                raise ValueError('Historical Phase II benchmark fixes thickness; disable thickness fitting')
             phase1_lo=request.form.get('phase1_min_nm')
             phase1_hi=request.form.get('phase1_max_nm')
             if phase1_lo in (None,'') or phase1_hi in (None,''):
@@ -209,7 +207,7 @@ def custom_fit():
             phase1=None
             if np.count_nonzero(mask)<8:
                 raise ValueError('Phase I initialization range requires at least 8 measured R/T points')
-            if True:
+            if np.count_nonzero(mask)>=8:
                 phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns))
                 s.thickness_nm=phase1['thickness_nm']
                 p=phase1['parameters']
