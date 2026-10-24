@@ -22,7 +22,47 @@ def swanepoel(wavelength_nm, transmission, substrate_n):
     N=2*s*(upper-lower)/(upper*lower)+(s*s+1)/2
     if np.any(N*N<s*s): raise ValueError("Negative envelope discriminant")
     n=np.sqrt(N+np.sqrt(N*N-s*s))
-    return {"method":"Swanepoel envelopes","wavelength_nm":x.tolist(),"n":n.tolist(),"T_max":upper.tolist(),"T_min":lower.tolist(),"note":"Normal-incidence weakly absorbing uniform film on a thick transparent substrate; envelope-derived n only, not k. Check substrate back-face assumptions."}
+    # Estimate thickness from consecutive extrema of the same family.
+    # Interpolate the envelope-derived refractive index only within its supported range.
+    n_at = PchipInterpolator(x, n, extrapolate=False)
+    fringe_pairs = []
+    for family, indices in (("maximum", maxima), ("minimum", minima)):
+        selected = w[indices]
+        selected = selected[(selected >= x[0]) & (selected <= x[-1])]
+        for lam1, lam2 in zip(selected[:-1], selected[1:]):
+            n1, n2 = float(n_at(lam1)), float(n_at(lam2))
+            denominator = 2 * (n1 * lam2 - n2 * lam1)
+            if not np.isfinite(denominator) or abs(denominator) < 1e-12:
+                continue
+            thickness = lam1 * lam2 / denominator
+            if np.isfinite(thickness) and thickness > 0:
+                fringe_pairs.append({"family": family, "lambda1_nm": float(lam1),
+                                     "lambda2_nm": float(lam2), "thickness_nm": float(thickness)})
+    thickness_values = np.array([p["thickness_nm"] for p in fringe_pairs], float)
+    thickness_nm = None
+    thickness_mad_nm = None
+    warnings = []
+    if len(thickness_values):
+        median = float(np.median(thickness_values))
+        mad = float(np.median(np.abs(thickness_values - median)))
+        # Reject clearly inconsistent fringe pairs, but keep all when scatter is zero.
+        retained = np.abs(thickness_values - median) <= max(3 * 1.4826 * mad, .05 * median)
+        thickness_nm = float(np.median(thickness_values[retained]))
+        thickness_mad_nm = float(np.median(np.abs(thickness_values[retained] - thickness_nm)))
+        for pair, keep in zip(fringe_pairs, retained):
+            pair["accepted"] = bool(keep)
+        if np.count_nonzero(retained) < 2:
+            warnings.append("Thickness is based on fewer than two consistent fringe pairs.")
+        if thickness_mad_nm > .1 * thickness_nm:
+            warnings.append("Large fringe-to-fringe thickness variation; verify extrema and film assumptions.")
+    else:
+        warnings.append("Insufficient same-family fringes inside valid envelopes for thickness estimation.")
+    return {"method":"Swanepoel envelopes", "wavelength_nm":x.tolist(), "n":n.tolist(),
+            "T_max":upper.tolist(), "T_min":lower.tolist(),
+            "maxima_nm":w[maxima].tolist(), "minima_nm":w[minima].tolist(),
+            "thickness_nm":thickness_nm, "thickness_mad_nm":thickness_mad_nm,
+            "fringe_pairs":fringe_pairs, "warnings":warnings,
+            "note":"Normal-incidence weakly absorbing uniform film on a thick transparent substrate. Thickness is an initial fringe-pair estimate; back-face optics, interference-order assignment and full Fresnel refinement remain necessary. k is not recovered."}
 
 def tauc(wavelength_nm,absorbance=None,transmission=None,thickness_nm=None,exponent=2,fit_range_ev=None):
     w=np.asarray(wavelength_nm,float)
