@@ -57,7 +57,7 @@ def inspect_material(filename, content, wavelength_unit='auto', signal_unit='aut
             resolved[name] = next((normalized[k] for k in keys if k in normalized), None)
     if not resolved['wavelength']:
         raise ValueError('Wavelength column not found; specify column mapping')
-    w = pd.to_numeric(df[resolved['wavelength']], errors='coerce').to_numpy(dtype=float)
+    w = pd.to_numeric(df[resolved['wavelength']], errors='coerce').to_numpy(dtype=float, copy=True)
     if not np.all(np.isfinite(w)):
         raise ValueError('Wavelength contains invalid values')
     if wavelength_unit == 'auto':
