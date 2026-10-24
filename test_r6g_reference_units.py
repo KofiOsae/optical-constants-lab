@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 import numpy as np
 import pandas as pd
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parent
 
 def test_reference_csv_wavelength_units():
     df=pd.read_csv(ROOT/'data'/'R6G_Singh.csv')
