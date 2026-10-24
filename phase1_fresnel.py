@@ -3,14 +3,14 @@ import numpy as np
 from scipy.optimize import least_squares
 from optical_inversion_package.inversion import coherent_film
 
-def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=250, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s'):
+def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=250, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None):
     w=np.asarray(wavelength_nm,float)
     R0=np.asarray(reflectance,float); T0=np.asarray(transmittance,float)
     if w.ndim!=1 or len(w)<8 or R0.shape!=w.shape or T0.shape!=w.shape:
         raise ValueError("Matching R/T wavelength arrays with at least 8 points required")
     if np.any(np.diff(w)<=0) or np.any(w<=0):
         raise ValueError('Phase I requires positive, strictly increasing wavelengths')
-    if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:\n        raise ValueError('Phase I requires known positive real substrate and ambient indices')\n    x=float(np.median(w))/w
+    if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:\n        raise ValueError('Phase I requires known positive real substrate and ambient indices')\n    x=(float(np.median(w)) if reference_nm is None else float(reference_nm))/w
     def forward(p):
         a,b,c,q0,q1,d=p
         n=a+b*x*x+c*x**4
