@@ -3,19 +3,19 @@ import numpy as np
 from scipy.optimize import least_squares
 from optical_inversion_package.inversion import coherent_film
 
-def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=250):
+def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=250, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s'):
     w=np.asarray(wavelength_nm,float)
     R0=np.asarray(reflectance,float); T0=np.asarray(transmittance,float)
     if w.ndim!=1 or len(w)<8 or R0.shape!=w.shape or T0.shape!=w.shape:
         raise ValueError("Matching R/T wavelength arrays with at least 8 points required")
     if w.min()<690 or w.max()>1000 or np.any(np.diff(w)<=0):
         raise ValueError("Phase I requires increasing wavelengths in 690-1000 nm")
-    x=800.0/w
+    if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:\n        raise ValueError('Phase I requires known positive real substrate and ambient indices')\n    x=800.0/w
     def forward(p):
         a,b,c,q0,q1,d=p
         n=a+b*x*x+c*x**4
         k=np.exp(np.clip(q0+q1*(x-1),-35,3))
-        R,T=coherent_film(w,n+1j*k,d,1.,1.,0.,'s')
+        R,T=coherent_film(w,n+1j*k,d,substrate_n,ambient_n,angle_deg,polarization)
         return n,k,R,T
     def residual(p):
         n,k,R,T=forward(p)
@@ -31,7 +31,7 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
         trials.append((rmse,sol,float(d)))
     score,sol,start=min(trials,key=lambda item:item[0])
     n,k,R,T=forward(sol.x)
-    return dict(wavelength_nm=w.tolist(),n=n.tolist(),k=k.tolist(),
+    return dict(geometry='freestanding' if abs(substrate_n-ambient_n)<1e-9 else 'film_on_semi_infinite_substrate',wavelength_nm=w.tolist(),n=n.tolist(),k=k.tolist(),
                 R_fit=R.tolist(),T_fit=T.tolist(),R_measured=R0.tolist(),
                 T_measured=T0.tolist(),thickness_nm=float(sol.x[5]),rmse=score,
                 parameters=dict(zip(('a','b','c','q0','q1','d_nm'),map(float,sol.x))),
