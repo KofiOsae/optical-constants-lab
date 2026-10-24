@@ -23,3 +23,21 @@ def test_upload_api():
     assert response.status_code==200,response.json
     assert len(response.json['n'])==12
     assert 'n_true' not in response.json
+
+def test_wavelength_window_filters_actual_inverse_and_rejects_invalid_range():
+    rows='wavelength_nm,R,T\n'+''.join(f'{v:.1f},0.2,0.7\n' for v in np.linspace(300,1000,71))
+    client=app.test_client()
+    def submit(low,high):
+        return client.post('/api/custom-fit',data={
+            'spectrum':(io.BytesIO(rows.encode()),'window.csv'),
+            'thickness_nm':'600','basis':'4','max_nfev':'5',
+            'wavelength_min_nm':str(low),'wavelength_max_nm':str(high)
+        },content_type='multipart/form-data')
+    response=submit(690,850)
+    assert response.status_code==200,response.json
+    assert response.json['wavelength_nm'][0]>=690
+    assert response.json['wavelength_nm'][-1]<=850
+    assert len(response.json['wavelength_nm'])==17
+    bad=submit(850,690)
+    assert bad.status_code==400
+    assert 'wavelength' in bad.json['error'].lower()
