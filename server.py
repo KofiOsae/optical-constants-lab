@@ -41,6 +41,7 @@ from custom_spectra import parse_spectrum
 from material_import import inspect_material
 from analysis_methods import swanepoel, tauc
 from stack_models import stack_spectrum, ellipsometry
+from method_comparison import compare_methods
 
 @app.post('/api/original-inverse')
 def original_inverse():
@@ -118,6 +119,28 @@ def get_ref():
         return jsonify({'error': 'Bundled R6G example unavailable: '+str(exc)}),503
     return jsonify({'wavelength_nm':w.tolist(),'n':n.tolist(),'k':k.tolist(),'samples':[{'name':v.name,'thickness_nm':v.thickness_nm,'substrate_n':v.substrate_n,'R':v.R.tolist(),'T':v.T.tolist()} for v in s]})
 
+
+@app.post('/api/compare-methods')
+def compare_methods_api():
+    try:
+        uploaded=request.files.get('spectrum')
+        if not uploaded: raise ValueError('Choose a measured R/T file')
+        structure=request.form.get('structure','supported')
+        if structure!='supported': raise ValueError('Swanepoel comparison requires film on a transparent substrate')
+        ns=request.form.get('substrate_n','1.5')
+        spec=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        lo=float(request.form.get('wavelength_min_nm',spec.wavelength_nm[0]))
+        hi=float(request.form.get('wavelength_max_nm',spec.wavelength_nm[-1]))
+        mask=(spec.wavelength_nm>=lo)&(spec.wavelength_nm<=hi)
+        if mask.sum()<12: raise ValueError('At least 12 points required in selected range')
+        spec.wavelength_nm=spec.wavelength_nm[mask]
+        if spec.R is not None:spec.R=spec.R[mask]
+        if spec.T is not None:spec.T=spec.T[mask]
+        basis=int(request.form.get('basis','8'))
+        if not 4<=basis<=25: raise ValueError('Basis count must be 4–25')
+        cfg=FitSettings(n_basis=basis,optimizer=request.form.get('optimizer','least_squares'),max_nfev=min(500,max(5,int(request.form.get('max_nfev','100')))),fit_thickness=request.form.get('fit_thickness')=='true')
+        return jsonify(compare_methods(spec,cfg,float(ns)))
+    except (ValueError,TypeError,KeyError) as exc:return jsonify({'error':str(exc)}),400
 
 @app.post('/api/custom-fit')
 def custom_fit():
