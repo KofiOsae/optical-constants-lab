@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import os
 import numpy as np
 import pandas as pd
-from engine import FitSettings,fit,simulate_four,compare_prediction
+from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
 app.config['MAX_CONTENT_LENGTH']=2_000_000
@@ -187,6 +187,22 @@ def custom_fit():
                 except (ValueError,TypeError,IndexError) as exc:
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
+        if request.form.get('reconstruction_model')=='historical_logk':
+            if settings.fit_thickness:
+                raise ValueError('Historical Phase II benchmark fixes thickness; disable thickness fitting')
+            historical=fit_historical_logk(s,max_nfev=budget)
+            return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),
+                'n':historical['n'].tolist(),'k':historical['k'].tolist(),
+                'R_measured':s.R.tolist(),'T_measured':s.T.tolist(),
+                'R_fit':historical['R'].tolist(),'T_fit':historical['T'].tolist(),
+                'thickness_nm':float(s.thickness_nm),
+                'rmse':historical['train_rmse'],
+                'train_rmse':historical['train_rmse'],'holdout_rmse':historical['holdout_rmse'],
+                'split':['train' if v else 'holdout' for v in historical['train_mask']],
+                'success':bool(historical['result'].success),
+                'message':str(historical['result'].message),
+                'initialization':{'method':historical['initialization']},
+                'note':'Historical n/log(k) spline; every fifth wavelength withheld; fixed thickness. Original warm-start not reproduced.'})
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
