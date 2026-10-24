@@ -198,18 +198,25 @@ def custom_fit():
         if request.form.get('reconstruction_model')=='historical_logk':
             if settings.fit_thickness:
                 raise ValueError('Historical Phase II benchmark fixes thickness; disable thickness fitting')
-            mask=(s.wavelength_nm>=690)&(s.wavelength_nm<=1000)
+            phase1_lo=request.form.get('phase1_min_nm')
+            phase1_hi=request.form.get('phase1_max_nm')
+            if phase1_lo in (None,'') or phase1_hi in (None,''):
+                raise ValueError('Select Phase I wavelength minimum and maximum for Phase II initialization')
+            phase1_lo=float(phase1_lo);phase1_hi=float(phase1_hi)
+            if not np.isfinite(phase1_lo) or not np.isfinite(phase1_hi) or phase1_lo>=phase1_hi:
+                raise ValueError('Invalid Phase I initialization range')
+            mask=(s.wavelength_nm>=phase1_lo)&(s.wavelength_nm<=phase1_hi)
             phase1=None
-            if np.count_nonzero(mask)>=8:
+            if np.count_nonzero(mask)<8:
+                raise ValueError('Phase I initialization range requires at least 8 measured R/T points')
+            if True:
                 phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns))
                 s.thickness_nm=phase1['thickness_nm']
                 p=phase1['parameters']
-                x=800.0/s.wavelength_nm
+                x=float(np.median(s.wavelength_nm[mask]))/s.wavelength_nm
                 n_seed=p['a']+p['b']*x*x+p['c']*x**4
                 k_seed=np.exp(np.clip(p['q0']+p['q1']*(x-1),-24,2))
                 historical=fit_historical_logk(s,max_nfev=budget,n_seed=n_seed,k_seed=k_seed)
-            else:
-                historical=fit_historical_logk(s,max_nfev=budget)
             return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),
                 'n':historical['n'].tolist(),'k':historical['k'].tolist(),
                 'R_measured':s.R.tolist(),'T_measured':s.T.tolist(),
