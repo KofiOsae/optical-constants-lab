@@ -48,12 +48,12 @@ def make_problem(spectra,settings):
             raise ValueError('Invalid Swanepoel index seed')
         grid=np.linspace(lo,hi,max(4*m,50))
         B_seed=spline_design(grid,lo,hi,m)
-        x0[:m]=np.clip(np.linalg.lstsq(B_seed,np.interp(grid,seed_w,seed_n),rcond=None)[0],low[:m]+1e-5,high[:m]-1e-5)
+        x0[:m]=np.clip(np.linalg.lstsq(B_seed,np.interp(grid,seed_w,seed_n),rcond=None)[0],lower[:m]+1e-5,upper[:m]-1e-5)
     if settings.initial_thickness_nm is not None and n_thick:
         d_seed=float(settings.initial_thickness_nm)
         if not np.isfinite(d_seed) or d_seed<=0:
             raise ValueError('Invalid Swanepoel thickness seed')
-        x0[2*m:]=np.clip(d_seed,low[2*m:]+1e-5,high[2*m:]-1e-5)
+        x0[2*m:]=np.clip(d_seed,lower[2*m:]+1e-5,upper[2*m:]-1e-5)
     def residual(x,include_penalty=True):
         a=x[:m]; b=x[m:2*m]; d=x[2*m:] if n_thick else thicknesses
         out=[]
