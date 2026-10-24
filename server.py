@@ -40,6 +40,7 @@ from benchmark_api import run_original_inverse
 from custom_spectra import parse_spectrum
 from material_import import inspect_material
 from analysis_methods import swanepoel, tauc
+from stack_models import stack_spectrum, ellipsometry
 
 @app.post('/api/original-inverse')
 def original_inverse():
@@ -89,6 +90,25 @@ def classical_analysis():
             return jsonify(tauc(material['wavelength_nm'],material.get('absorbance'),material.get('T'),request.form.get('thickness_nm','1000'),request.form.get('exponent','2'),(request.form.get('fit_lo_ev','2'),request.form.get('fit_hi_ev','3'))))
         raise ValueError('Unknown classical analysis method')
     except (ValueError,TypeError,KeyError) as exc: return jsonify({'error':str(exc)}),400
+
+@app.post('/api/stack-simulate')
+def stack_simulate():
+    try:
+        payload=request.get_json(force=True)
+        w=np.asarray(payload['wavelength_nm'],dtype=float)
+        if w.size>3000 or w.size<2: raise ValueError('Supply 2–3000 wavelengths')
+        layers=payload.get('layers',[])
+        if len(layers)>20: raise ValueError('Maximum 20 coherent layers')
+        args=(w,layers,payload.get('ambient_n',1),payload.get('substrate_n',1.5),payload.get('angle_deg',0))
+        result=stack_spectrum(*args,payload.get('polarization','s'))
+        if payload.get('ellipsometry',False):
+            result['ellipsometry']=ellipsometry(*args)
+        def convert(v):
+            if isinstance(v,np.ndarray):return v.tolist()
+            if isinstance(v,dict):return {k:convert(x) for k,x in v.items()}
+            return v
+        return jsonify(convert(result))
+    except (ValueError,TypeError,KeyError,OverflowError) as exc:return jsonify({'error':str(exc)}),400
 
 @app.get('/api/reference')
 def get_ref():
