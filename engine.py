@@ -16,6 +16,8 @@ class FitSettings:
     population:int=18
     iterations:int=30
     noise_floor:float=.005
+    initial_n:object=None
+    initial_thickness_nm:float=None
 
 def validate_spectra(spectra):
     if not spectra: raise ValueError('At least one spectrum is required')
@@ -39,6 +41,19 @@ def make_problem(spectra,settings):
     lower=np.r_[np.full(m,1.),np.zeros(m),thicknesses*(1-settings.thickness_tolerance) if n_thick else []]
     upper=np.r_[np.full(m,4.),np.full(m,2.),thicknesses*(1+settings.thickness_tolerance) if n_thick else []]
     x0=np.r_[np.full(m,1.75),np.full(m,.05),thicknesses if n_thick else []]
+    if settings.initial_n is not None:
+        seed_w, seed_n = settings.initial_n
+        seed_w=np.asarray(seed_w,float); seed_n=np.asarray(seed_n,float)
+        if len(seed_w)<2 or len(seed_w)!=len(seed_n) or np.any(np.diff(seed_w)<=0):
+            raise ValueError('Invalid Swanepoel index seed')
+        grid=np.linspace(lo,hi,max(4*m,50))
+        B_seed=spline_design(grid,lo,hi,m)
+        x0[:m]=np.clip(np.linalg.lstsq(B_seed,np.interp(grid,seed_w,seed_n),rcond=None)[0],lower[:m]+1e-5,upper[:m]-1e-5)
+    if settings.initial_thickness_nm is not None and n_thick:
+        d_seed=float(settings.initial_thickness_nm)
+        if not np.isfinite(d_seed) or d_seed<=0:
+            raise ValueError('Invalid Swanepoel thickness seed')
+        x0[2*m:]=np.clip(d_seed,lower[2*m:]+1e-5,upper[2*m:]-1e-5)
     def residual(x,include_penalty=True):
         a=x[:m]; b=x[m:2*m]; d=x[2*m:] if n_thick else thicknesses
         out=[]
