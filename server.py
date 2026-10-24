@@ -7,6 +7,7 @@ import os
 import numpy as np
 import pandas as pd
 from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk
+from phase1_fresnel import phase1_fit
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
 app.config['MAX_CONTENT_LENGTH']=2_000_000
@@ -187,6 +188,15 @@ def custom_fit():
                 except (ValueError,TypeError,IndexError) as exc:
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
+        if request.form.get('reconstruction_model')=='phase1':
+            if structure!='freestanding':
+                raise ValueError('Verified Phase I benchmark requires a free-standing film')
+            if s.R is None or s.T is None:
+                raise ValueError('Phase I requires both R and T')
+            result=phase1_fit(s.wavelength_nm,s.R,s.T,max_nfev=budget)
+            result['initialization']={'method':'documented_phase1_multistart'}
+            result['note']='Phase I six-parameter Fresnel model, weak absorption, air/film/air; synthetic reference benchmark.'
+            return jsonify(result)
         if request.form.get('reconstruction_model')=='historical_logk':
             if settings.fit_thickness:
                 raise ValueError('Historical Phase II benchmark fixes thickness; disable thickness fitting')
