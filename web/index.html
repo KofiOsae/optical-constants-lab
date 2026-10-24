@@ -24,8 +24,8 @@ function overlayReference(d){
 document.getElementById('reference_nk_file').addEventListener('change',async e=>{
  try{
   const file=e.target.files[0];if(!file)return;
-  const lines=(await file.text()).trim().split(/\\r?\\n/).filter(x=>x.trim());
-  const separator=lines[0].includes('\\t')?'\\t':',';
+  const lines=(await file.text()).trim().split(/\r?\n/).filter(x=>x.trim());
+  const separator=lines[0].includes('\t')?'\t':',';
   const parts=line=>line.split(separator).map(x=>x.trim().replace(/^"|"$/g,''));
   const head=parts(lines[0]).map(x=>x.toLowerCase().replace(/[^a-z0-9]/g,''));
   const wi=head.findIndex(x=>['wavelengthnm','wavelengthum','wavelength'].includes(x)),ni=head.indexOf('n'),ki=head.indexOf('k');
