@@ -198,7 +198,18 @@ def custom_fit():
         if request.form.get('reconstruction_model')=='historical_logk':
             if settings.fit_thickness:
                 raise ValueError('Historical Phase II benchmark fixes thickness; disable thickness fitting')
-            historical=fit_historical_logk(s,max_nfev=budget)
+            mask=(s.wavelength_nm>=690)&(s.wavelength_nm<=1000)
+            phase1=None
+            if np.count_nonzero(mask)>=8:
+                phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns))
+                s.thickness_nm=phase1['thickness_nm']
+                p=phase1['parameters']
+                x=800.0/s.wavelength_nm
+                n_seed=p['a']+p['b']*x*x+p['c']*x**4
+                k_seed=np.exp(np.clip(p['q0']+p['q1']*(x-1),-24,2))
+                historical=fit_historical_logk(s,max_nfev=budget,n_seed=n_seed,k_seed=k_seed)
+            else:
+                historical=fit_historical_logk(s,max_nfev=budget)
             return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),
                 'n':historical['n'].tolist(),'k':historical['k'].tolist(),
                 'R_measured':s.R.tolist(),'T_measured':s.T.tolist(),
@@ -209,7 +220,7 @@ def custom_fit():
                 'split':['train' if v else 'holdout' for v in historical['train_mask']],
                 'success':bool(historical['result'].success),
                 'message':str(historical['result'].message),
-                'initialization':{'method':historical['initialization']},
+                'initialization':{'method':'phase1_fresnel' if phase1 else historical['initialization']},'phase1':phase1,
                 'note':'Historical n/log(k) spline; every fifth wavelength withheld; fixed thickness. Original warm-start not reproduced.'})
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
