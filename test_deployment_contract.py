@@ -1,6 +1,6 @@
 from pathlib import Path
 import ast
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parent
 def test_server_syntax():
     ast.parse((ROOT/'server.py').read_text())
 def test_render_and_health_contract():
