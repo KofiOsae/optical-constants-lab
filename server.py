@@ -128,6 +128,20 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        # Restrict the numerical inversion itself to the user-selected wavelengths.
+        range_lo=request.form.get('wavelength_min_nm')
+        range_hi=request.form.get('wavelength_max_nm')
+        if range_lo is not None or range_hi is not None:
+            lo=float(range_lo) if range_lo not in (None,'') else float(s.wavelength_nm[0])
+            hi=float(range_hi) if range_hi not in (None,'') else float(s.wavelength_nm[-1])
+            if not np.isfinite(lo) or not np.isfinite(hi) or lo>=hi:
+                raise ValueError('Invalid wavelength range: minimum must be below maximum')
+            mask=(s.wavelength_nm>=lo)&(s.wavelength_nm<=hi)
+            if np.count_nonzero(mask)<max(8,int(request.form.get('basis','8'))+2):
+                raise ValueError('Selected wavelength range contains too few points for the chosen spline basis')
+            s.wavelength_nm=s.wavelength_nm[mask]
+            if s.R is not None:s.R=s.R[mask]
+            if s.T is not None:s.T=s.T[mask]
         method=request.form.get('optimizer','least_squares')
         if method not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):raise ValueError('Unknown optimizer')
         basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
