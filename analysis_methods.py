@@ -5,7 +5,9 @@ from scipy.interpolate import PchipInterpolator
 
 def swanepoel(wavelength_nm, transmission, substrate_n):
     w=np.asarray(wavelength_nm,float); t=np.asarray(transmission,float); s=float(substrate_n)
-    if len(w)<12 or np.any(np.diff(w)<=0) or not (1<s<5): raise ValueError("Swanepoel needs ordered wavelengths and a known transparent substrate n>1")
+    if len(w)<12: raise ValueError("Swanepoel requires at least 12 spectral samples")
+    if np.any(np.diff(w)<=0): raise ValueError("Swanepoel requires strictly increasing wavelengths")
+    if not (1<s<5): raise ValueError(f"Swanepoel requires a known transparent substrate index 1<n_s<5; current n_s={s:g}. Set the actual substrate index in Reconstruction Lab.")
     if np.any((t<=0)|(t>1)) or np.any(~np.isfinite(t)): raise ValueError("Transmission must be fractions in (0,1]")
     prom=max(.005,.08*float(np.ptp(t))); dist=max(2,len(w)//35)
     maxima,_=find_peaks(t,prominence=prom,distance=dist)
