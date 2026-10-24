@@ -39,6 +39,7 @@ def samples():
 from benchmark_api import run_original_inverse
 from custom_spectra import parse_spectrum
 from material_import import inspect_material
+from analysis_methods import swanepoel, tauc
 
 @app.post('/api/original-inverse')
 def original_inverse():
@@ -72,6 +73,23 @@ def import_preview():
     except (ValueError, TypeError, KeyError) as exc:
         return jsonify({'error': str(exc)}), 400
 
+@app.post('/api/classical-analysis')
+def classical_analysis():
+    try:
+        uploaded=request.files.get('spectrum')
+        if not uploaded: raise ValueError('Select a spectrum file')
+        preview=inspect_material(uploaded.filename,uploaded.read(),request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        material={'wavelength_nm':preview['wavelength_nm'],**preview['columns']}
+        method=request.form.get('method','swanepoel')
+        if method=='swanepoel':
+            if 'T' not in material: raise ValueError('Swanepoel requires transmission')
+            return jsonify(swanepoel(material['wavelength_nm'],material['T'],request.form.get('substrate_n','1.5')))
+        if method=='tauc':
+            if 'absorbance' not in material and 'T' not in material: raise ValueError('Tauc requires absorbance or transmission')
+            return jsonify(tauc(material['wavelength_nm'],material.get('absorbance'),material.get('T'),request.form.get('thickness_nm','1000'),request.form.get('exponent','2'),(request.form.get('fit_lo_ev','2'),request.form.get('fit_hi_ev','3'))))
+        raise ValueError('Unknown classical analysis method')
+    except (ValueError,TypeError,KeyError) as exc: return jsonify({'error':str(exc)}),400
+
 @app.get('/api/reference')
 def get_ref():
     try:
@@ -86,7 +104,10 @@ def custom_fit():
     try:
         uploaded=request.files.get('spectrum')
         if not uploaded:raise ValueError('Choose a CSV, TSV or JSON spectrum file')
-        s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),request.form.get('substrate_n','1'),request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        structure=request.form.get('structure','supported')
+        if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
+        ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
+        s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
         method=request.form.get('optimizer','least_squares')
         if method not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):raise ValueError('Unknown optimizer')
         basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
