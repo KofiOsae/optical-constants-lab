@@ -189,13 +189,11 @@ def custom_fit():
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
         if request.form.get('reconstruction_model')=='phase1':
-            if structure!='freestanding':
-                raise ValueError('Verified Phase I benchmark requires a free-standing film')
             if s.R is None or s.T is None:
                 raise ValueError('Phase I requires both R and T')
-            result=phase1_fit(s.wavelength_nm,s.R,s.T,max_nfev=budget)
+            result=phase1_fit(s.wavelength_nm,s.R,s.T,max_nfev=budget,substrate_n=float(ns))
             result['initialization']={'method':'documented_phase1_multistart'}
-            result['note']='Phase I six-parameter Fresnel model, weak absorption, air/film/air; synthetic reference benchmark.'
+            result['note']='Phase I weak-absorption Fresnel model; supports air/film/air and film on semi-infinite transparent substrate. Original R6G benchmark is freestanding.'
             return jsonify(result)
         if request.form.get('reconstruction_model')=='historical_logk':
             if settings.fit_thickness:
