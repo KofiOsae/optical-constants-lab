@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 from optical_inversion_package.inversion import coherent_film
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parent
 
 def inputs():
     doc=json.loads((ROOT/'data/original_plot_raw_7.json').read_text())
