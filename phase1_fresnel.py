@@ -8,9 +8,9 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
     R0=np.asarray(reflectance,float); T0=np.asarray(transmittance,float)
     if w.ndim!=1 or len(w)<8 or R0.shape!=w.shape or T0.shape!=w.shape:
         raise ValueError("Matching R/T wavelength arrays with at least 8 points required")
-    if w.min()<690 or w.max()>1000 or np.any(np.diff(w)<=0):
-        raise ValueError("Phase I requires increasing wavelengths in 690-1000 nm")
-    if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:\n        raise ValueError('Phase I requires known positive real substrate and ambient indices')\n    x=800.0/w
+    if np.any(np.diff(w)<=0) or np.any(w<=0):
+        raise ValueError('Phase I requires positive, strictly increasing wavelengths')
+    if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:\n        raise ValueError('Phase I requires known positive real substrate and ambient indices')\n    x=float(np.median(w))/w
     def forward(p):
         a,b,c,q0,q1,d=p
         n=a+b*x*x+c*x**4
