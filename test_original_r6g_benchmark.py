@@ -36,7 +36,7 @@ def test_independent_forward_model():
 
 def test_phase1_archived_fit():
     _,w,c,_=inputs()
-    x=np.load(ROOT/'data/phase1_fit_verified.npz')
+    x=np.load(ROOT/'phase1_fit_verified.npz')
     assert abs(float(x['q'][-1])*1000-999.38)<0.02
     # Stored fit inputs match the archived spectrum, not a newly generated replacement.
     assert np.max(np.abs(np.interp(x['wl']*1000,w,c['R'])-x['R']))<1e-9
