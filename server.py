@@ -133,10 +133,27 @@ def custom_fit():
         basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
         if not 4<=basis<=25 or not 5<=budget<=500:raise ValueError('Invalid basis or budget')
         settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true')
+        initialization={'method':'default','warning':None}
+        if request.form.get('initialize_from_swanepoel')=='true':
+            if s.T is None:
+                initialization={'method':'default','warning':'Swanepoel initialization requires transmission.'}
+            elif float(ns)<=1:
+                initialization={'method':'default','warning':'Swanepoel initialization requires a transparent substrate with n>1.'}
+            else:
+                try:
+                    seed=swanepoel(s.wavelength_nm,s.T,float(ns))
+                    settings.initial_n=(seed['wavelength_nm'],seed['n'])
+                    if seed['thickness_nm'] is not None:
+                        settings.initial_thickness_nm=seed['thickness_nm']
+                        settings.fit_thickness=True
+                    initialization={'method':'swanepoel','thickness_nm':seed['thickness_nm'],'warnings':seed['warnings']}
+                except (ValueError,TypeError,IndexError) as exc:
+                    initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
+
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
-        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
+        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
     except Exception as exc:return jsonify({'error':str(exc)}),400
 
 @app.post('/api/fit')
