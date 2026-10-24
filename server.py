@@ -1,0 +1,121 @@
+from pathlib import Path
+import sys
+ROOT=Path(__file__).resolve().parent
+sys.path.insert(0,str(ROOT))
+from flask import Flask, jsonify, request, send_from_directory
+import os
+import numpy as np
+import pandas as pd
+from engine import FitSettings,fit,simulate_four,compare_prediction
+from optical_inversion_package.inversion import Spectrum,coherent_film
+app=Flask(__name__,static_folder='web',static_url_path='')
+app.config['MAX_CONTENT_LENGTH']=2_000_000
+DATA=ROOT/'data'/'R6G_Singh.csv'
+
+def reference():
+    df=pd.read_csv(DATA)
+    cols={c.lower().strip():c for c in df.columns}
+    def col(names):
+        for name in names:
+            if name in cols:return np.asarray(df[cols[name]],dtype=float)
+        for name in names:
+            if len(name)>2:
+                for key,c in cols.items():
+                    if name in key:return np.asarray(df[c],dtype=float)
+        raise ValueError('Missing column '+str(names))
+    w=col(['wavelength_um','wavelength_nm','wavelength','wl','lambda']);n=col(['n']);k=col(['k'])
+    if 'wavelength_um' in cols or (('wavelength_nm' not in cols) and np.nanmax(w)<10):w=w*1000
+    order=np.argsort(w)
+    if len(w)<3 or not np.all(np.isfinite(w)) or not np.all(np.isfinite(n)) or not np.all(np.isfinite(k)) or np.any(np.diff(w[order])<=0):raise ValueError('Invalid R6G reference dataset')
+    return w[order],n[order],k[order]
+
+def samples():
+    w,n,k=reference()
+    mask=(w>=400)&(w<=950)
+    w,n,k=w[mask],n[mask],k[mask]
+    idx=np.unique(np.linspace(0,len(w)-1,min(61,len(w)),dtype=int))
+    return simulate_four(w[idx],n[idx],k[idx]),(w[idx],n[idx],k[idx])
+
+from benchmark_api import run_original_inverse
+from custom_spectra import parse_spectrum
+from material_import import inspect_material
+
+@app.post('/api/original-inverse')
+def original_inverse():
+    try:
+        payload=request.get_json(silent=True) or {}
+        return jsonify(run_original_inverse(float(payload.get('initial_thickness_nm',950))))
+    except Exception as exc:
+        return jsonify({'error':str(exc)}),400
+
+@app.errorhandler(413)
+def upload_too_large(error):
+    return jsonify({'error':'Upload too large. Maximum file size is 1 MB.'}),413
+
+@app.get('/health')
+def health():return jsonify({'status':'ok','service':'optical-constants-lab','version':'0.3.9'})
+
+@app.get('/')
+def home():return send_from_directory(ROOT/'web','index.html')
+
+@app.post('/api/import-preview')
+def import_preview():
+    try:
+        uploaded = request.files.get('spectrum')
+        if not uploaded:
+            raise ValueError('Choose a CSV, TSV, TXT or JSON file')
+        result = inspect_material(
+            uploaded.filename, uploaded.read(),
+            request.form.get('wavelength_unit', 'auto'),
+            request.form.get('signal_unit', 'auto'))
+        return jsonify(result)
+    except (ValueError, TypeError, KeyError) as exc:
+        return jsonify({'error': str(exc)}), 400
+
+@app.get('/api/reference')
+def get_ref():
+    try:
+        s,(w,n,k)=samples()
+    except (OSError, ValueError, KeyError) as exc:
+        return jsonify({'error': 'Bundled R6G example unavailable: '+str(exc)}),503
+    return jsonify({'wavelength_nm':w.tolist(),'n':n.tolist(),'k':k.tolist(),'samples':[{'name':v.name,'thickness_nm':v.thickness_nm,'substrate_n':v.substrate_n,'R':v.R.tolist(),'T':v.T.tolist()} for v in s]})
+
+
+@app.post('/api/custom-fit')
+def custom_fit():
+    try:
+        uploaded=request.files.get('spectrum')
+        if not uploaded:raise ValueError('Choose a CSV, TSV or JSON spectrum file')
+        s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),request.form.get('substrate_n','1'),request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        method=request.form.get('optimizer','least_squares')
+        if method not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):raise ValueError('Unknown optimizer')
+        basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
+        if not 4<=basis<=25 or not 5<=budget<=500:raise ValueError('Invalid basis or budget')
+        settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true')
+        result=fit([s],settings)
+        nf,kf=result['optical_constants'](s.wavelength_nm)
+        pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
+        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
+    except Exception as exc:return jsonify({'error':str(exc)}),400
+
+@app.post('/api/fit')
+def fit_api():
+    try:
+        req=request.get_json(silent=True)
+        if not isinstance(req,dict):raise ValueError('JSON object required')
+        s,(w,n_true,k_true)=samples()
+        chosen=set(req.get('samples',[0,1,2,3]));s=[v for i,v in enumerate(s) if i in chosen]
+        if not s:raise ValueError('Select at least one sample')
+        method=req.get('optimizer','least_squares')
+        if method not in ['least_squares','multistart','differential_evolution','hho','hho_hybrid']:raise ValueError('Unsupported optimizer')
+        settings=FitSettings(n_basis=int(req.get('basis',10)),smoothness=float(req.get('smoothness',.1)),optimizer=method,fit_thickness=bool(req.get('fit_thickness',False)),max_nfev=int(req.get('max_nfev',100)),iterations=int(req.get('iterations',12)),population=int(req.get('population',12)))
+        if not 4<=settings.n_basis<=25 or not 0<=settings.smoothness<=100 or not 5<=settings.max_nfev<=500 or not 1<=settings.iterations<=100 or not 5<=settings.population<=100:raise ValueError('Parameter outside allowed range')
+        result=fit(s,settings);nf,kf=result['optical_constants'](w)
+        predictions=[]
+        for i,v in enumerate(s):
+            p=compare_prediction(v,nf,kf,result['thicknesses'][i]);predictions.append({'name':v.name,'rmse':p['rmse'],'R':p['R'].tolist(),'T':p['T'].tolist(),'R_measured':v.R.tolist(),'T_measured':v.T.tolist(),'thickness_nm':float(result['thicknesses'][i])})
+        return jsonify({'wavelength_nm':w.tolist(),'n':nf.tolist(),'k':kf.tolist(),'n_true':n_true.tolist(),'k_true':k_true.tolist(),'rmse_n':float(np.sqrt(np.mean((nf-n_true)**2))),'rmse_k':float(np.sqrt(np.mean((kf-k_true)**2))),'weighted_rmse':result['weighted_rmse'],'predictions':predictions,'message':str(result['result'].message),'success':bool(result['result'].success),'evaluations':int(result['result'].nfev)})
+    except Exception as e:return jsonify({'error':str(e)}),400
+
+if __name__=='__main__':
+    app.run(host=os.environ.get('HOST','127.0.0.1'),port=int(os.environ.get('PORT','8765')),debug=False)
