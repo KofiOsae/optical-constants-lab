@@ -68,10 +68,11 @@ def make_problem(spectra,settings):
         return np.asarray(out)
     return residual,x0,lower,upper,(lo,hi),thicknesses
 
-def harris_hawks(objective,lower,upper,population=18,iterations=30,seed=42):
+def harris_hawks(objective,lower,upper,population=18,iterations=30,seed=42,initial=None):
     '''Bounded HHO: exploration, soft/hard besiege, and rapid dives with Levy steps.'''
     rng=np.random.default_rng(seed); dim=len(lower)
     hawks=rng.uniform(lower,upper,size=(population,dim))
+    if initial is not None: hawks[0]=np.clip(np.asarray(initial,dtype=float),lower,upper)
     scores=np.array([objective(x) for x in hawks]); best=hawks[np.argmin(scores)].copy(); best_score=float(np.min(scores)); history=[best_score]; evaluations=population
     for t in range(iterations):
         energy0=2*rng.random()-1
@@ -112,7 +113,7 @@ def fit(spectra,settings):
         res=differential_evolution(objective,list(zip(low,high)),seed=settings.seed,popsize=max(3,settings.population//len(x0)),maxiter=settings.iterations,polish=False)
         initial=res.x; history=[float(res.fun)]; evaluations_global=res.nfev
     elif settings.optimizer in ('hho','hho_hybrid'):
-        initial,history,evaluations_global=harris_hawks(objective,low,high,settings.population,settings.iterations,settings.seed)
+        initial,history,evaluations_global=harris_hawks(objective,low,high,settings.population,settings.iterations,settings.seed,initial=x0)
     else: raise ValueError('Unknown optimizer')
     if settings.optimizer=='hho':
         class R: pass
