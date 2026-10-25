@@ -241,22 +241,35 @@ def joint_fit_api():
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
             thickness_tolerance=tolerance)
         method=request.form.get('joint_method','two_stage')
-        if method not in ('two_stage','direct'): raise ValueError('Unknown joint method')
-        outcome=fit_joint_two_stage(spectra,settings) if method=='two_stage' else fit(spectra,settings)
-        grid=np.unique(np.concatenate([s.wavelength_nm for s in spectra]))
+        if method not in ('two_stage','direct','lorentz','drude_lorentz'): raise ValueError('Unknown joint method')
+        holdout=int(request.form.get('holdout_index','-1'))
+        if holdout < -1 or holdout >= len(spectra): raise ValueError('Invalid holdout index')
+        if holdout >= 0 and len(spectra)<3: raise ValueError('Holdout validation needs at least 3 films')
+        training=[sp for i,sp in enumerate(spectra) if i!=holdout]
+        if method in ('lorentz','drude_lorentz'):
+            from scientific_diagnostics import fit_causal
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness)
+        else:
+            outcome=fit_joint_two_stage(training,settings) if method=='two_stage' else fit(training,settings)
+        grid=np.unique(np.concatenate([s.wavelength_nm for s in training]))
         n,k=outcome['optical_constants'](grid)
         predictions=[]
         for i,spec in enumerate(spectra):
             ni,ki=outcome['optical_constants'](spec.wavelength_nm)
-            p=compare_prediction(spec,ni,ki,outcome['thicknesses'][i])
+            fitted_index=i if holdout<0 or i<holdout else i-1
+            thickness=spec.thickness_nm if i==holdout else outcome['thicknesses'][fitted_index]
+            p=compare_prediction(spec,ni,ki,thickness)
             predictions.append(dict(name=spec.name,wavelength_nm=spec.wavelength_nm.tolist(),
                 R_measured=None if spec.R is None else spec.R.tolist(),
                 T_measured=None if spec.T is None else spec.T.tolist(),
                 R_fit=p['R'].tolist(),T_fit=p['T'].tolist(),rmse=p['rmse'],
-                thickness_nm=float(outcome['thicknesses'][i]),
+                thickness_nm=float(thickness),held_out=bool(i==holdout),
                 angle_deg=spec.angle_deg,polarization=spec.polarization))
+        from scientific_diagnostics import jacobian_report
+        diagnostics=jacobian_report(outcome['result'])
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
             predictions=predictions,weighted_rmse=outcome['weighted_rmse'],stages=outcome.get('stages'),
+            sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
             note='Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
     except (ValueError,TypeError,KeyError,OverflowError) as exc:
