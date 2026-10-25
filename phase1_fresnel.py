@@ -59,7 +59,15 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
             if integral>0:
                 extrema.append(dict(type=kind,wavelengths_nm=[wl1,wl2],thickness_nm=float(1/(2*integral))))
     fringe_thickness=float(np.median([e['thickness_nm'] for e in extrema])) if extrema else None
-    return dict(group_index=group_index.tolist(),fringe_thickness_nm=fringe_thickness,
+    spectral_ng=[]
+    for e in extrema:
+        l1,l2=e['wavelengths_nm']
+        # Exact interval-weighted effective group index conditional on d.
+        ng_eff=1.0/(2*float(sol.x[5])*(1/l1-1/l2))
+        e['spectral_group_index']=float(ng_eff)
+        e['center_wavelength_nm']=float(2*l1*l2/(l1+l2))
+        spectral_ng.append(ng_eff)
+    return dict(spectral_group_index_pairs=[dict(type=e['type'],wavelength_nm=e['center_wavelength_nm'],group_index=e['spectral_group_index']) for e in extrema],group_index=group_index.tolist(),fringe_thickness_nm=fringe_thickness,
                 fringe_pairs=extrema,fringe_diagnostic_note='Uses fitted dispersion; consistency check only, not independent thickness identification.',geometry='freestanding' if abs(substrate_n-ambient_n)<1e-9 else 'film_on_semi_infinite_substrate',wavelength_nm=w.tolist(),n=n.tolist(),k=k.tolist(),
                 R_fit=R.tolist(),T_fit=T.tolist(),R_measured=R0.tolist(),
                 T_measured=T0.tolist(),thickness_nm=float(sol.x[5]),rmse=score,
