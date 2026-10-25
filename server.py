@@ -155,7 +155,7 @@ def custom_fit():
         # Restrict the numerical inversion itself to the user-selected wavelengths.
         range_lo=request.form.get('wavelength_min_nm')
         range_hi=request.form.get('wavelength_max_nm')
-        if range_lo is not None or range_hi is not None:
+        if (range_lo is not None or range_hi is not None) and request.form.get('reconstruction_model')!='historical_logk':
             lo=float(range_lo) if range_lo not in (None,'') else float(s.wavelength_nm[0])
             hi=float(range_hi) if range_hi not in (None,'') else float(s.wavelength_nm[-1])
             if not np.isfinite(lo) or not np.isfinite(hi) or lo>=hi:
@@ -196,10 +196,10 @@ def custom_fit():
             result['note']='Phase I weak-absorption Fresnel model; supports air/film/air and film on semi-infinite transparent substrate. Original R6G benchmark is freestanding.'
             return jsonify(result)
         if request.form.get('reconstruction_model')=='historical_logk':
-            phase1_lo=request.form.get('phase1_min_nm')
-            phase1_hi=request.form.get('phase1_max_nm')
+            phase1_lo=request.form.get('wavelength_min_nm')
+            phase1_hi=request.form.get('wavelength_max_nm')
             if phase1_lo in (None,'') or phase1_hi in (None,''):
-                raise ValueError('Select Phase I wavelength minimum and maximum for Phase II initialization')
+                raise ValueError('Select Phase I initialization window using the wavelength sliders')
             phase1_lo=float(phase1_lo);phase1_hi=float(phase1_hi)
             if not np.isfinite(phase1_lo) or not np.isfinite(phase1_hi) or phase1_lo>=phase1_hi:
                 raise ValueError('Invalid Phase I initialization range')
