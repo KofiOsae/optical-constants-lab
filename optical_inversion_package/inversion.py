@@ -29,8 +29,11 @@ def coherent_film(wavelength_nm, n_film, thickness_nm, substrate_n=1.,
     """
     wl = np.asarray(wavelength_nm, dtype=float)
     nf = np.asarray(n_film, dtype=complex)
-    n0, ns = complex(ambient_n), complex(substrate_n)
-    if abs(n0.imag)>1e-12 or abs(ns.imag)>1e-12:
+    n0 = complex(ambient_n)
+    ns = np.asarray(substrate_n, dtype=complex)
+    if ns.ndim > 1 or (ns.ndim == 1 and ns.shape != wl.shape):
+        raise ValueError('Substrate dispersion must be scalar or match wavelength grid')
+    if abs(n0.imag)>1e-12 or np.any(np.abs(np.imag(ns))>1e-12):
         raise ValueError('Ambient and semi-infinite substrate must be nonabsorbing')
     if np.any(np.real(nf)<=0) or np.any(np.imag(nf)<0):
         raise ValueError('Require n>0, k>=0')
