@@ -17,6 +17,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python verify_synthetic_absorber.py | tee synthetic_absorber_results.json
+        shell: bash -eo pipefail {0}
       - uses: actions/upload-artifact@v4
         with:
           name: synthetic-absorber-results
