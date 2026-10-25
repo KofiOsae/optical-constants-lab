@@ -281,6 +281,9 @@ def custom_fit():
                 p=approved.get('parameters')
                 if not isinstance(p,dict) or not all(key in p for key in ('a','b','c','q0','q1','d_nm')):
                     raise ValueError('Approved Phase I must contain all six fitted parameters')
+                measured=np.r_[s.R[mask],s.T[mask]]
+                if approved.get('R_measured') != s.R[mask].tolist() or approved.get('T_measured') != s.T[mask].tolist():
+                    raise ValueError('Phase I input data changed; rerun Phase I')
                 if approved.get('wavelength_nm') != s.wavelength_nm[mask].tolist():
                     raise ValueError('Phase I wavelength selection changed; rerun Phase I')
                 if approved.get('substrate_n') != float(ns) or approved.get('structure') != structure:
