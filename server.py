@@ -44,6 +44,43 @@ from analysis_methods import swanepoel, tauc
 from stack_models import stack_spectrum, ellipsometry
 from method_comparison import compare_methods
 
+@app.get('/api/benchmark/scientific-acceptance')
+def scientific_acceptance():
+    """Independent reference check; archived reconstruction is not fitted here."""
+    try:
+        from historical_reference import archived_phase2
+        from optical_inversion_package.inversion import coherent_film
+        reference_data=archived_phase2()
+        w=np.asarray(reference_data['wavelength_nm'],float)
+        n=np.asarray(reference_data['n'],float)
+        k=np.asarray(reference_data['k'],float)
+        d=float(reference_data['thickness_nm'])
+        raw=__import__('json').loads((ROOT/'data/original_plot_raw_7.json').read_text())
+        series={v['label']:v for v in raw['data']['series']}
+        R=np.asarray(series['R']['y'],float)
+        T=np.asarray(series['T']['y'],float)
+        R_fit,T_fit=coherent_film(w,n+1j*k,d)
+        train=np.arange(len(w))%5!=0
+        def rmse(a,b,mask):
+            return float(np.sqrt(np.mean((a[mask]-b[mask])**2)))
+        metrics={'R_train_rmse':rmse(R_fit,R,train),'T_train_rmse':rmse(T_fit,T,train),
+                 'R_holdout_rmse':rmse(R_fit,R,~train),'T_holdout_rmse':rmse(T_fit,T,~train),
+                 'R_all_rmse':rmse(R_fit,R,np.ones(len(w),bool)),
+                 'T_all_rmse':rmse(T_fit,T,np.ones(len(w),bool))}
+        # Compare the documented archival forward model with the production coherent-film model.
+        model_R=np.asarray(reference_data['R_fit'],float)
+        model_T=np.asarray(reference_data['T_fit'],float)
+        metrics['forward_R_max_abs']=float(np.max(np.abs(R_fit-model_R)))
+        metrics['forward_T_max_abs']=float(np.max(np.abs(T_fit-model_T)))
+        limits={'forward_R_max_abs':1e-8,'forward_T_max_abs':1e-8}
+        passed=all(metrics[key]<=value for key,value in limits.items())
+        return jsonify({'passed':passed,'metrics':metrics,'limits':limits,
+                        'source':'Archived R6G free-standing-film Phase II reconstruction',
+                        'reference_only':True,
+                        'warning':'Forward-model parity is tested. This is not a blind n/k recovery accuracy test.'})
+    except (ValueError,TypeError,KeyError,OSError) as exc:
+        return jsonify({'error':str(exc)}),500
+
 @app.get('/api/benchmark/phase2-archive')
 def phase2_archive():
     from historical_reference import archived_phase2
