@@ -128,6 +128,64 @@ def fit(spectra,settings):
     measurements=np.concatenate([residual(result.x,False)])
     return {'result':result,'optical_constants':optical_constants,'thicknesses':thickness,'weighted_rmse':float(np.sqrt(np.mean(measurements**2))),'history':history,'global_evaluations':evaluations_global,'domain':domain}
 
+def fit_joint_two_stage(spectra, settings):
+    """Blind joint Cauchy/log-absorption initialization followed by B-spline refinement."""
+    validate_spectra(spectra)
+    nominal=np.array([s.thickness_nm for s in spectra],float)
+    count=len(spectra) if settings.fit_thickness else 0
+    low=np.r_[1.0,-1.0,-1.0,-20.0,-8.0,nominal*(1-settings.thickness_tolerance) if count else []]
+    high=np.r_[4.0,1.0,1.0,0.0,8.0,nominal*(1+settings.thickness_tolerance) if count else []]
+    def evaluate(q, penalty=True):
+        out=[]
+        for j,s in enumerate(spectra):
+            x=800.0/np.asarray(s.wavelength_nm,float)
+            n=q[0]+q[1]*x*x+q[2]*x**4
+            k=np.exp(np.clip(q[3]+q[4]*(x-1),-30,2))
+            d=q[5+j] if count else nominal[j]
+            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            if s.R is not None:out.extend((R-s.R)/s.sigma_R)
+            if s.T is not None:out.extend((T-s.T)/s.sigma_T)
+        if penalty:out.extend([.001*q[2],.001*q[4]])
+        return np.asarray(out)
+    seeds=[]
+    for n0 in (1.5,1.75,2.0,2.25):
+        for b0 in (0.0,.04):
+            seeds.append(np.r_[n0,b0,0.,np.log(.001),0.,nominal if count else []])
+    trials=[least_squares(evaluate,np.clip(q,low+1e-8,high-1e-8),
+             bounds=(low,high),max_nfev=max(120,settings.max_nfev),x_scale='jac') for q in seeds]
+    first=min(trials,key=lambda z:np.linalg.norm(evaluate(z.x,False)))
+    def param_values(w):
+        x=800./np.asarray(w,float)
+        return first.x[0]+first.x[1]*x*x+first.x[2]*x**4,np.exp(np.clip(first.x[3]+first.x[4]*(x-1),-30,2))
+    residual,x0,lo,hi,domain,_=make_problem(spectra,settings)
+    m=settings.n_basis
+    grid=np.linspace(*domain,max(4*m,80))
+    B=spline_design(grid,*domain,m)
+    pn,pk=param_values(grid)
+    x0[:m]=np.linalg.lstsq(B,pn,rcond=None)[0]
+    x0[m:2*m]=np.linalg.lstsq(B,pk,rcond=None)[0]
+    if count:x0[2*m:]=first.x[5:]
+    x0=np.clip(x0,lo+1e-8,hi-1e-8)
+    second=least_squares(residual,x0,bounds=(lo,hi),max_nfev=max(180,settings.max_nfev),x_scale='jac')
+    score1=float(np.sqrt(np.mean(evaluate(first.x,False)**2)))
+    score2=float(np.sqrt(np.mean(residual(second.x,False)**2)))
+    use_spline=score2<=score1*(1+1e-4)
+    chosen=second if use_spline else first
+    def optical_constants(w):
+        if not use_spline:return param_values(w)
+        b=spline_design(np.asarray(w,float),*domain,m)
+        return b@second.x[:m],b@second.x[m:2*m]
+    thickness=(second.x[2*m:] if use_spline else first.x[5:]) if count else nominal
+    return {'result':chosen,'optical_constants':optical_constants,'thicknesses':thickness,
+            'weighted_rmse':score2 if use_spline else score1,'history':[],
+            'global_evaluations':sum(z.nfev for z in trials),'domain':domain,
+            'stages':{'parametric_weighted_rmse':score1,'spline_weighted_rmse':score2,
+                      'selected':'spline' if use_spline else 'parametric',
+                      'parametric_thicknesses_nm':(first.x[5:] if count else nominal).tolist(),
+                      'spline_thicknesses_nm':(second.x[2*m:] if count else nominal).tolist(),
+                      'parametric_coefficients':dict(a=float(first.x[0]),b=float(first.x[1]),c=float(first.x[2]),
+                                                     q0=float(first.x[3]),q1=float(first.x[4]))}}
+
 def simulate_four(wavelength_nm,n,k):
     specs=[]
     for name,d,sub in [('A thick air',1000.,1.),('B thin air',50.,1.),('C thick glass',1000.,1.5),('D thin glass',50.,1.5)]:
