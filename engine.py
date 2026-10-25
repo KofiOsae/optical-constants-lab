@@ -260,57 +260,75 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
             'train_mask':train,'nodes':nodes,'initialization':('saved coefficients' if warm_start is not None else 'provided n/k seed' if n_seed is not None else 'flat seed'),'success':bool(result.success),'message':str(result.message),'nfev':int(result.nfev),'candidate_count':(len(trials) if max_nfev!=0 else 1),'regularized_objective':float(np.sum(residual(result.x)**2))}
 
 
-def fit_absorption_aware_blind(spectrum, settings=None, transparent_min_nm=None, starts=3):
-    """Blind, data-only staged initialization for a single coherent film.
+def fit_absorption_aware_blind(spectrum, settings=None, transparent_min_nm=None, starts=5):
+    """Data-only Cauchy/attenuation initialization followed by bounded spline R/T inversion.
 
-    Estimate Cauchy n in a weakly absorbing window, approximate k from
-    Beer-Lambert attenuation, then optimize the standard spline objective.
-    The substrate is still included in the coherent forward model.
-    Beer-Lambert k is ONLY an initializer, not a corrected inversion result.
+    A small deterministic set of index-dispersion and absorption seeds is ranked
+    using the FULL R/T objective, not just the weak-absorption window.
+    No known optical constants enter the initializer.
     """
     from scipy.ndimage import gaussian_filter1d
     if spectrum.R is None or spectrum.T is None:
         raise ValueError('Blind absorption-aware initialization needs both R and T')
     settings = settings or FitSettings(n_basis=18, smoothness=.01, max_nfev=140)
-    residual, x0, low, high, domain, _ = make_problem([spectrum], settings)
     if settings.fit_thickness:
-        raise ValueError('This initializer currently requires fixed film thickness')
-    w=np.asarray(spectrum.wavelength_nm,dtype=float)
-    R=np.asarray(spectrum.R,dtype=float)
-    T=np.asarray(spectrum.T,dtype=float)
+        raise ValueError('Blind initializer requires fixed thickness')
+    residual, _, low, high, domain, _ = make_problem([spectrum], settings)
+    w=np.asarray(spectrum.wavelength_nm,float)
+    R=np.asarray(spectrum.R,float)
+    T=np.asarray(spectrum.T,float)
     m=settings.n_basis
     B=spline_design(w,*domain,m)
     threshold=float(transparent_min_nm) if transparent_min_nm is not None else float(np.quantile(w,.35))
     mask=(w>=threshold)&(T>.15)
     if np.count_nonzero(mask)<12:
         raise ValueError('Insufficient weakly absorbing wavelengths for fringe-based initialization')
-    k_est=np.clip(-w*np.log(np.clip(T,1e-5,.98))/(4*np.pi*spectrum.thickness_nm),1e-5,1.5)
-    k_est=gaussian_filter1d(k_est,2)
-    seed_fits=[]
-    for n_guess in np.arange(1.4,2.31,.15):
-        def fringe_residual(z):
-            n=z[0]+z[1]*(800./w)**2
-            rr,tt=coherent_film(w[mask],n[mask]+1j*np.full(np.count_nonzero(mask),.0001),
-                spectrum.thickness_nm,np.asarray(spectrum.substrate_n)[mask] if np.ndim(spectrum.substrate_n) else spectrum.substrate_n,
-                spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
+    substrate=np.asarray(spectrum.substrate_n)
+    ns_mask=substrate[mask] if substrate.ndim else spectrum.substrate_n
+    # Beer-Lambert estimate neglects interfaces; it is only a starting point.
+    k_beer=gaussian_filter1d(np.clip(-w*np.log(np.clip(T,1e-5,.999))/
+        (4*np.pi*spectrum.thickness_nm),1e-6,1.5),2)
+    seeds=[]
+    # Fit both Cauchy dispersion and a constant nonnegative k in the selected
+    # window. Allowing weak absorption avoids forcing a transparent model onto
+    # an only approximately transparent measured region.
+    for n0 in np.arange(1.35,2.66,.13):
+        def fringe(q):
+            n=q[0]+q[1]*(800./w[mask])**2
+            rr,tt=coherent_film(w[mask],n+1j*q[2],spectrum.thickness_nm,
+                ns_mask,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
             return np.r_[rr-R[mask],tt-T[mask]]
-        opt=least_squares(fringe_residual,[n_guess,0.],bounds=([1.,-.7],[3.,.7]),max_nfev=35)
-        seed_fits.append((float(np.dot(opt.fun,opt.fun)),opt.x))
-    seed_fits.sort(key=lambda x:x[0])
+        trial=least_squares(fringe,[n0,0.,.01],bounds=([1.,-.9,0.],[3.8,.9,.4]),
+            max_nfev=75)
+        seeds.append(trial.x)
+    # Retain diverse seeds across n values to avoid the window's local fringe aliases.
     candidates=[]
-    for _,z in seed_fits[:starts]:
-        n_est=z[0]+z[1]*(800./w)**2
-        an=np.linalg.lstsq(B,n_est,rcond=None)[0]
-        ak=np.linalg.lstsq(B,k_est,rcond=None)[0]
-        seed=np.clip(np.r_[an,ak],low+1e-7,high-1e-7)
-        opt=least_squares(residual,seed,bounds=(low,high),max_nfev=settings.max_nfev,x_scale='jac')
-        candidates.append(opt)
-    result=min(candidates,key=lambda z:float(np.dot(z.fun,z.fun)))
-    n=B@result.x[:m]
-    k=B@result.x[m:2*m]
+    for q in seeds:
+        n_est=q[0]+q[1]*(800./w)**2
+        for k_factor in (.5,1.,1.5):
+            k_est=np.clip(k_factor*k_beer,1e-6,1.8)
+            a=np.linalg.lstsq(B,n_est,rcond=None)[0]
+            b=np.linalg.lstsq(B,k_est,rcond=None)[0]
+            x=np.clip(np.r_[a,b],low+1e-7,high-1e-7)
+            candidates.append((float(np.dot(residual(x),residual(x))),x))
+    candidates.sort(key=lambda item:item[0])
+    chosen=[]
+    for _,x in candidates:
+        if not any(np.linalg.norm(x[:m]-other[:m])<.05 for other in chosen):
+            chosen.append(x)
+        if len(chosen)>=max(1,int(starts)):
+            break
+    fits=[]
+    for x in chosen:
+        fit=least_squares(residual,x,bounds=(low,high),
+            max_nfev=settings.max_nfev,x_scale='jac')
+        fits.append(fit)
+    result=min(fits,key=lambda fit:float(np.dot(fit.fun,fit.fun)))
+    n=B@result.x[:m];k=B@result.x[m:2*m]
     rp,tp=coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,
         spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
     return dict(n=n,k=k,R_fit=rp,T_fit=tp,thickness_nm=spectrum.thickness_nm,
-        R_rmse=float(np.sqrt(np.mean((rp-R)**2))),T_rmse=float(np.sqrt(np.mean((tp-T)**2))),
-        nfev=int(result.nfev),success=bool(result.success),candidates=len(candidates),
-        transparent_threshold_nm=threshold)
+        R_rmse=float(np.sqrt(np.mean((rp-R)**2))),
+        T_rmse=float(np.sqrt(np.mean((tp-T)**2))),
+        nfev=int(sum(fit.nfev for fit in fits)),success=bool(result.success),
+        candidates=len(fits),transparent_threshold_nm=threshold)
