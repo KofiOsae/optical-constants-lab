@@ -148,6 +148,65 @@ def compare_methods_api():
         return jsonify(compare_methods(spec,cfg,float(ns)))
     except (ValueError,TypeError,KeyError) as exc:return jsonify({'error':str(exc)}),400
 
+@app.post('/api/joint-fit')
+def joint_fit_api():
+    """Fit shared optical constants to 2-12 uploaded thin-film spectra."""
+    try:
+        import json
+        uploads=request.files.getlist('spectra')
+        configs=json.loads(request.form.get('configurations','[]'))
+        if not 2<=len(uploads)<=12 or not isinstance(configs,list) or len(configs)!=len(uploads):
+            raise ValueError('Supply 2-12 spectra and matching configurations')
+        spectra=[]
+        for upload,c in zip(uploads,configs):
+            if not isinstance(c,dict):
+                raise ValueError('Each configuration must be an object')
+            spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
+                c.get('substrate_n',1.5),c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
+            spec.angle_deg=float(c.get('angle_deg',0))
+            spec.polarization=str(c.get('polarization','s')).lower()
+            spec.sigma_R=float(c.get('sigma_R',.005))
+            spec.sigma_T=float(c.get('sigma_T',.005))
+            if not np.isfinite(spec.angle_deg) or not 0<=spec.angle_deg<85:
+                raise ValueError('Angle must be in [0,85) degrees')
+            if spec.polarization not in ('s','p'):
+                raise ValueError('Polarization must be s or p')
+            spec.name=str(c.get('name',upload.filename or 'spectrum'))[:100]
+            spectra.append(spec)
+        basis=int(request.form.get('basis',10))
+        budget=int(request.form.get('max_nfev',180))
+        smooth=float(request.form.get('smoothness',.1))
+        tolerance=float(request.form.get('thickness_tolerance',.15))
+        optimizer=request.form.get('optimizer','multistart')
+        if not 4<=basis<=25 or not 5<=budget<=500 or not 0<=smooth<=100:
+            raise ValueError('Invalid basis, budget or smoothness')
+        if not 0<tolerance<=.5:
+            raise ValueError('Thickness tolerance must be between 0 and 0.5')
+        if optimizer not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):
+            raise ValueError('Unknown optimizer')
+        settings=FitSettings(n_basis=basis,max_nfev=budget,smoothness=smooth,
+            optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
+            thickness_tolerance=tolerance)
+        outcome=fit(spectra,settings)
+        grid=np.unique(np.concatenate([s.wavelength_nm for s in spectra]))
+        n,k=outcome['optical_constants'](grid)
+        predictions=[]
+        for i,spec in enumerate(spectra):
+            ni,ki=outcome['optical_constants'](spec.wavelength_nm)
+            p=compare_prediction(spec,ni,ki,outcome['thicknesses'][i])
+            predictions.append(dict(name=spec.name,wavelength_nm=spec.wavelength_nm.tolist(),
+                R_measured=None if spec.R is None else spec.R.tolist(),
+                T_measured=None if spec.T is None else spec.T.tolist(),
+                R_fit=p['R'].tolist(),T_fit=p['T'].tolist(),rmse=p['rmse'],
+                thickness_nm=float(outcome['thicknesses'][i]),
+                angle_deg=spec.angle_deg,polarization=spec.polarization))
+        return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
+            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],
+            success=bool(outcome['result'].success),message=str(outcome['result'].message),
+            note='Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
+    except (ValueError,TypeError,KeyError,OverflowError) as exc:
+        return jsonify({'error':str(exc)}),400
+
 @app.post('/api/custom-fit')
 def custom_fit():
     try:
