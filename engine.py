@@ -170,6 +170,33 @@ def phase2_hybrid_seed(wavelength_nm, global_wavelength_nm, global_n, global_k, 
     return np.r_[n0,np.log(np.maximum(k0,1e-8))]
 
 
+def estimate_broadband_seed(spectrum, n_seed, k_seed, nodes=25, max_nfev=55):
+    """Independent broadband nodal fit from the uploaded R/T measurements.
+
+    No material-specific reference curves are used. A smooth, bounded fit
+    supplies the low-wavelength portion of the historical hybrid initializer.
+    """
+    from scipy.interpolate import CubicSpline
+    w=np.asarray(spectrum.wavelength_nm,dtype=float)
+    if spectrum.R is None or spectrum.T is None:
+        raise ValueError('Broadband initialization requires measured R and T')
+    kn=np.linspace(w[0],w[-1],nodes)
+    n0=np.interp(kn,w,np.asarray(n_seed,dtype=float))
+    k0=np.interp(kn,w,np.asarray(k_seed,dtype=float))
+    q0=np.r_[np.clip(n0,1.01,3.99),np.log(np.clip(k0,1e-7,2.0))]
+    lo=np.r_[np.full(nodes,1.),np.full(nodes,-20.)]
+    hi=np.r_[np.full(nodes,4.),np.full(nodes,1.)]
+    def objective(q):
+        n=CubicSpline(kn,q[:nodes],bc_type='natural')(w)
+        k=np.exp(np.clip(CubicSpline(kn,q[nodes:],bc_type='natural')(w),-24,2))
+        R,T=coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
+        return np.r_[T-spectrum.T,R-spectrum.R,.012*np.diff(q[:nodes],2),.003*np.diff(q[nodes:],2)]
+    sol=least_squares(objective,np.clip(q0,lo+1e-8,hi-1e-8),bounds=(lo,hi),max_nfev=max_nfev,ftol=1e-6,xtol=1e-6,gtol=1e-6)
+    n=CubicSpline(kn,sol.x[:nodes],bc_type='natural')(w)
+    k=np.exp(np.clip(CubicSpline(kn,sol.x[nodes:],bc_type='natural')(w),-24,2))
+    return {'n':n,'k':k,'nfev':int(sol.nfev),'success':bool(sol.success),'message':str(sol.message)}
+
+
 def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=None, warm_start=None):
     """Phase-II natural cubic nodal splines: n and log(k), fixed known thickness.
     Recovered phase2_fair_fit.py uses 25 nodes, residual penalties .009/.0015.
