@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import os
 import numpy as np
 import pandas as pd
-from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk,estimate_broadband_seed,phase2_hybrid_seed,fit_absorption_aware_blind
+from engine import FitSettings,fit,fit_joint_two_stage,simulate_four,compare_prediction,fit_historical_logk,estimate_broadband_seed,phase2_hybrid_seed,fit_absorption_aware_blind
 from phase1_fresnel import phase1_fit
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
@@ -236,7 +236,9 @@ def joint_fit_api():
         settings=FitSettings(n_basis=basis,max_nfev=budget,smoothness=smooth,
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
             thickness_tolerance=tolerance)
-        outcome=fit(spectra,settings)
+        method=request.form.get('joint_method','two_stage')
+        if method not in ('two_stage','direct'): raise ValueError('Unknown joint method')
+        outcome=fit_joint_two_stage(spectra,settings) if method=='two_stage' else fit(spectra,settings)
         grid=np.unique(np.concatenate([s.wavelength_nm for s in spectra]))
         n,k=outcome['optical_constants'](grid)
         predictions=[]
@@ -250,7 +252,7 @@ def joint_fit_api():
                 thickness_nm=float(outcome['thicknesses'][i]),
                 angle_deg=spec.angle_deg,polarization=spec.polarization))
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
-            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],
+            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],stages=outcome.get('stages'),
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
             note='Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
     except (ValueError,TypeError,KeyError,OverflowError) as exc:
