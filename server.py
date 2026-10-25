@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import os
 import numpy as np
 import pandas as pd
-from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk
+from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk,estimate_broadband_seed,phase2_hybrid_seed
 from phase1_fresnel import phase1_fit
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
@@ -221,7 +221,9 @@ def custom_fit():
                 x=800.0/s.wavelength_nm
                 n_seed=p['a']+p['b']*x*x+p['c']*x**4
                 k_seed=np.exp(np.clip(p['q0']+p['q1']*(x-1),-24,2))
-                historical=fit_historical_logk(s,max_nfev=budget,n_seed=n_seed,k_seed=k_seed)
+                broadband=estimate_broadband_seed(s,n_seed,k_seed,max_nfev=max(20,min(70,budget)))
+                hybrid=phase2_hybrid_seed(s.wavelength_nm,s.wavelength_nm,broadband['n'],broadband['k'],p)
+                historical=fit_historical_logk(s,max_nfev=budget,warm_start=hybrid)
             return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),
                 'n':historical['n'].tolist(),'k':historical['k'].tolist(),
                 'R_measured':s.R.tolist(),'T_measured':s.T.tolist(),
@@ -232,8 +234,8 @@ def custom_fit():
                 'split':['train' if v else 'holdout' for v in historical['train_mask']],
                 'success':bool(historical['result'].success),
                 'message':str(historical['result'].message),'phase2_nfev':historical['nfev'],
-                'initialization':{'method':'phase1_fresnel' if phase1 else historical['initialization']},'phase1':phase1,
-                'note':'Natural cubic n/log(k) spline; every fifth wavelength withheld; fixed thickness. Original archived warm-start is not automatically available for arbitrary samples.'})
+                'initialization':{'method':'sample_specific_broadband_plus_phase1_hybrid','broadband_nfev':broadband['nfev'],'broadband_success':broadband['success'],'transition_nm':690.0},'phase1':phase1,
+                'note':'Sample-specific broadband R/T initializer plus Phase I above 690 nm; Phase II holds out every fifth wavelength. Historical R6G archive is not used for user samples.'})
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
