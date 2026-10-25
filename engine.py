@@ -140,6 +140,36 @@ def compare_prediction(spectrum,n,k,thickness=None):
     diffs=np.concatenate([R-spectrum.R if spectrum.R is not None else np.array([]),T-spectrum.T if spectrum.T is not None else np.array([])])
     return {'R':R,'T':T,'rmse':float(np.sqrt(np.mean(diffs**2)))}
 
+def phase2_hybrid_seed(wavelength_nm, global_wavelength_nm, global_n, global_k, phase1_parameters, nodes=25, transition_nm=690.0):
+    """Reproduce the original phase2_fair_fit.py knot initialization.
+
+    Below and at 690 nm interpolate the independent broadband global estimate.
+    Above 690 nm use Phase I with a fixed 800 nm reference wavelength.
+    The broadband input must come from an independently calculated fit, not
+    from a reference n/k table or an unrelated material.
+    """
+    w=np.asarray(wavelength_nm,dtype=float)
+    gw=np.asarray(global_wavelength_nm,dtype=float)
+    gn=np.asarray(global_n,dtype=float)
+    gk=np.asarray(global_k,dtype=float)
+    if w.ndim!=1 or gw.ndim!=1 or len(w)<nodes or len(gw)<2 or np.any(np.diff(w)<=0) or np.any(np.diff(gw)<=0):
+        raise ValueError('Hybrid seed requires increasing wavelength arrays')
+    if not (np.all(np.isfinite(gn)) and np.all(np.isfinite(gk)) and len(gw)==len(gn)==len(gk)) or np.any(gk<=0):
+        raise ValueError('Broadband seed requires finite n and positive k')
+    kn=np.linspace(w[0],w[-1],nodes)
+    if gw[0]>kn[0] or gw[-1]<kn[-1]:
+        raise ValueError('Broadband seed must cover the complete Phase II wavelength range')
+    n0=np.interp(kn,gw,gn)
+    k0=np.interp(kn,gw,gk)
+    for j,wl in enumerate(kn):
+        if wl>transition_nm:
+            x=800.0/wl
+            p=phase1_parameters
+            n0[j]=p['a']+p['b']*x*x+p['c']*x**4
+            k0[j]=np.exp(np.clip(p['q0']+p['q1']*(x-1),-35,3))
+    return np.r_[n0,np.log(np.maximum(k0,1e-8))]
+
+
 def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=None, warm_start=None):
     """Phase-II natural cubic nodal splines: n and log(k), fixed known thickness.
     Recovered phase2_fair_fit.py uses 25 nodes, residual penalties .009/.0015.
