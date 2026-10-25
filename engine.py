@@ -140,7 +140,7 @@ def compare_prediction(spectrum,n,k,thickness=None):
     diffs=np.concatenate([R-spectrum.R if spectrum.R is not None else np.array([]),T-spectrum.T if spectrum.T is not None else np.array([])])
     return {'R':R,'T':T,'rmse':float(np.sqrt(np.mean(diffs**2)))}
 
-def fit_historical_logk(spectrum, max_nfev=180, nodes=25, n_seed=None, k_seed=None):
+def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=None, warm_start=None):
     """Phase-II natural cubic nodal splines: n and log(k), fixed known thickness.
     Recovered phase2_fair_fit.py uses 25 nodes, residual penalties .009/.0015.
     This implementation does NOT reproduce its archived warm-start unless supplied.
@@ -160,6 +160,11 @@ def fit_historical_logk(spectrum, max_nfev=180, nodes=25, n_seed=None, k_seed=No
     initial_n=np.full(nodes,1.75) if n_seed is None else np.interp(kn,w,np.asarray(n_seed))
     initial_k=np.full(nodes,.05) if k_seed is None else np.interp(kn,w,np.asarray(k_seed))
     x0=np.r_[np.clip(initial_n,1.001,3.999),np.log(np.clip(initial_k,np.exp(-19.9),2.5))]
+    if warm_start is not None:
+        q=np.asarray(warm_start,dtype=float)
+        if q.shape != (2*nodes,) or not np.all(np.isfinite(q)):
+            raise ValueError('Warm start must contain 2*nodes finite spline coefficients')
+        x0=q.copy()
     lower=np.r_[np.full(nodes,1.),np.full(nodes,-20.)]
     upper=np.r_[np.full(nodes,4.),np.full(nodes,1.)]
     train=np.arange(len(w))%5!=0
@@ -170,11 +175,12 @@ def fit_historical_logk(spectrum, max_nfev=180, nodes=25, n_seed=None, k_seed=No
     def residual(q):
         R,T=predict(q)
         return np.r_[(T-spectrum.T)[train],(R-spectrum.R)[train],.009*np.diff(q[:nodes],2),.0015*np.diff(q[nodes:],2)]
-    result=least_squares(residual,x0,bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
+    result=least_squares(residual,np.clip(x0,lower+1e-9,upper-1e-9),bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
+
     n,k=values(result.x,w)
     R,T=predict(result.x)
     def rmse(mask):
         return float(np.sqrt(np.mean(np.r_[(T-spectrum.T)[mask],(R-spectrum.R)[mask]]**2)))
     return {'result':result,'n':n,'k':k,'R':R,'T':T,
             'train_rmse':rmse(train),'holdout_rmse':rmse(holdout),
-            'train_mask':train,'nodes':nodes,'initialization':'flat (archived warm-start unavailable)'}
+            'train_mask':train,'nodes':nodes,'initialization':('saved coefficients' if warm_start is not None else 'provided n/k seed' if n_seed is not None else 'flat seed'),'success':bool(result.success),'message':str(result.message),'nfev':int(result.nfev)}
