@@ -24,7 +24,7 @@ def run():
     hybrid=phase2_hybrid_seed(w,w,broad['n'],broad['k'],p)
     fit=fit_historical_logk(s,max_nfev=90,warm_start=hybrid)
     archive=archived_phase2()
-    result=dict(phase1_thickness_nm=phase1['thickness_nm'],phase1_rmse=phase1['rmse'],broadband_nfev=broad['nfev'],phase2_nfev=fit['nfev'],phase2_success=fit['success'],phase2_train_rmse=fit['train_rmse'],phase2_holdout_rmse=fit['holdout_rmse'],archived_train_rmse=archive['train_rmse'],archived_holdout_rmse=archive['holdout_rmse'],n_mae=float(np.mean(np.abs(fit['n']-archive['n']))),k_mae=float(np.mean(np.abs(fit['k']-archive['k']))),thickness_difference_nm=phase1['thickness_nm']-archive['thickness_nm'])
+    result=dict(phase1_thickness_nm=phase1['thickness_nm'],phase1_rmse=phase1['rmse'],broadband_nfev=broad['nfev'],phase2_nfev=fit['nfev'],phase2_candidates=fit['candidate_count'],phase2_success=fit['success'],phase2_train_rmse=fit['train_rmse'],phase2_holdout_rmse=fit['holdout_rmse'],archived_train_rmse=archive['train_rmse'],archived_holdout_rmse=archive['holdout_rmse'],n_mae=float(np.mean(np.abs(fit['n']-archive['n']))),k_mae=float(np.mean(np.abs(fit['k']-archive['k']))),thickness_difference_nm=phase1['thickness_nm']-archive['thickness_nm'])
     return result
 
 if __name__=='__main__':
