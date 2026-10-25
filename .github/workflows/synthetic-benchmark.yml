@@ -1,0 +1,23 @@
+name: Synthetic absorbing-film scientific benchmark
+on:
+  push:
+    paths:
+      - 'verify_synthetic_absorber.py'
+      - '.github/workflows/synthetic-benchmark.yml'
+  workflow_dispatch:
+jobs:
+  absorber:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python verify_synthetic_absorber.py | tee synthetic_absorber_results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-absorber-results
+          path: synthetic_absorber_results.json
