@@ -218,7 +218,7 @@ def custom_fit():
                 phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns))
                 s.thickness_nm=phase1['thickness_nm']
                 p=phase1['parameters']
-                x=float(np.median(s.wavelength_nm[mask]))/s.wavelength_nm
+                x=800.0/s.wavelength_nm
                 n_seed=p['a']+p['b']*x*x+p['c']*x**4
                 k_seed=np.exp(np.clip(p['q0']+p['q1']*(x-1),-24,2))
                 historical=fit_historical_logk(s,max_nfev=budget,n_seed=n_seed,k_seed=k_seed)
