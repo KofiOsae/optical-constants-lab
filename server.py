@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 import os
 import numpy as np
 import pandas as pd
-from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk,estimate_broadband_seed,phase2_hybrid_seed
+from engine import FitSettings,fit,simulate_four,compare_prediction,fit_historical_logk,estimate_broadband_seed,phase2_hybrid_seed,fit_absorption_aware_blind
 from phase1_fresnel import phase1_fit
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
@@ -236,6 +236,32 @@ def custom_fit():
                 'message':str(historical['result'].message),'phase2_nfev':historical['nfev'],'phase2_candidate_count':historical['candidate_count'],'phase2_regularized_objective':historical['regularized_objective'],
                 'initialization':{'method':'sample_specific_broadband_plus_phase1_hybrid','broadband_nfev':broadband['nfev'],'broadband_success':broadband['success'],'transition_nm':690.0},'phase1':phase1,
                 'note':'Sample-specific broadband R/T initializer plus Phase I above 690 nm; Phase II holds out every fifth wavelength. Historical R6G archive is not used for user samples.'})
+        if request.form.get('reconstruction_model')=='blind_absorption_aware':
+            if s.R is None or s.T is None:
+                raise ValueError('Blind absorption-aware inversion requires both R and T')
+            if settings.fit_thickness:
+                raise ValueError('Blind initializer requires fixed thickness; use a thickness sweep for sensitivity')
+            if request.form.get('initialize_from_swanepoel')=='true':
+                raise ValueError('Select either Swanepoel or blind absorption-aware initialization')
+            threshold_text=request.form.get('transparent_min_nm','')
+            threshold=float(threshold_text) if threshold_text.strip() else None
+            if threshold is not None and not np.isfinite(threshold):
+                raise ValueError('Invalid transparent-window threshold')
+            settings.smoothness=float(request.form.get('smoothness','0.01'))
+            if not 0<=settings.smoothness<=100:
+                raise ValueError('Smoothness must be between 0 and 100')
+            result=fit_absorption_aware_blind(s,settings,transparent_min_nm=threshold)
+            return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),
+                'n':result['n'].tolist(),'k':result['k'].tolist(),
+                'R_measured':s.R.tolist(),'T_measured':s.T.tolist(),
+                'R_fit':result['R_fit'].tolist(),'T_fit':result['T_fit'].tolist(),
+                'thickness_nm':float(result['thickness_nm']),
+                'rmse':float(np.sqrt((result['R_rmse']**2+result['T_rmse']**2)/2)),
+                'R_rmse':result['R_rmse'],'T_rmse':result['T_rmse'],
+                'success':result['success'],'message':'Blind staged inversion completed',
+                'initialization':{'method':'absorption_aware_blind','starts':result['candidates'],
+                    'transparent_threshold_nm':result['transparent_threshold_nm'],'nfev':result['nfev']},
+                'note':'Data-only initializer; thickness fixed. Optical constants may be nonunique.'})
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
