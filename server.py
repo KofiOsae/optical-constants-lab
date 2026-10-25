@@ -65,7 +65,10 @@ def upload_too_large(error):
 def health():return jsonify({'status':'ok','service':'optical-constants-lab','version':'0.3.9'})
 
 @app.get('/')
-def home():return send_from_directory(ROOT/'web','index.html')
+def home():return send_from_directory(ROOT/'web','workspace.html')
+
+@app.get('/legacy')
+def legacy():return send_from_directory(ROOT/'web','index.html')
 
 @app.post('/api/import-preview')
 def import_preview():
