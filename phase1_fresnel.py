@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import least_squares
 from optical_inversion_package.inversion import coherent_film
 
-def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=1400, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None):
+def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=1400, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None, thickness_estimate_nm=None, thickness_tolerance=0.5):
     w=np.asarray(wavelength_nm,float)
     R0=np.asarray(reflectance,float); T0=np.asarray(transmittance,float)
     if w.ndim!=1 or len(w)<8 or R0.shape!=w.shape or T0.shape!=w.shape:
@@ -22,12 +22,22 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
     def residual(p):
         n,k,R,T=forward(p)
         return np.r_[R-R0,T-T0]
-    lower=[1.,-2.,-2.,-25.,-40.,200.]
-    upper=[3.,2.,2.,-2.,40.,2000.]
-    starts=starts_nm if starts_nm is not None else [450,600,750,900,1000,1100,1250,1500]
+    if thickness_estimate_nm is None:
+        dmin,dmax=200.,2000.
+        starts=starts_nm if starts_nm is not None else [450,600,750,900,1000,1100,1250,1500]
+    else:
+        center=float(thickness_estimate_nm)
+        tol=float(thickness_tolerance)
+        if not np.isfinite(center) or center<=0 or not np.isfinite(tol) or not 0<tol<=1:
+            raise ValueError('Invalid thickness estimate or tolerance')
+        dmin=max(1.,center*(1-tol))
+        dmax=center*(1+tol)
+        starts=starts_nm if starts_nm is not None else np.linspace(dmin+.02*(dmax-dmin),dmax-.02*(dmax-dmin),9)
+    lower=[1.,-2.,-2.,-25.,-40.,dmin]
+    upper=[3.,2.,2.,-2.,40.,dmax]
     trials=[]
     for d in starts:
-        guess=[1.73,-.065,.105,-9.2,12.5,float(d)]
+        guess=[1.73,-.065,.105,-9.2,12.5,float(np.clip(d,dmin+1e-6,dmax-1e-6))]
         sol=least_squares(residual,guess,bounds=(lower,upper),max_nfev=max_nfev,xtol=1e-11,ftol=1e-11,gtol=1e-11)
         rmse=float(np.sqrt(np.mean(residual(sol.x)**2)))
         trials.append((rmse,sol,float(d)))
