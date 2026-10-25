@@ -274,10 +274,26 @@ def custom_fit():
                 raise ValueError('Invalid Phase I initialization range')
             mask=(s.wavelength_nm>=phase1_lo)&(s.wavelength_nm<=phase1_hi)
             phase1=None
+            approved_text=request.form.get('approved_phase1','').strip()
+            if approved_text:
+                import json
+                approved=json.loads(approved_text)
+                p=approved.get('parameters')
+                if not isinstance(p,dict) or not all(key in p for key in ('a','b','c','q0','q1','d_nm')):
+                    raise ValueError('Approved Phase I must contain all six fitted parameters')
+                if approved.get('wavelength_nm') != s.wavelength_nm[mask].tolist():
+                    raise ValueError('Phase I wavelength selection changed; rerun Phase I')
+                if approved.get('substrate_n') != float(ns) or approved.get('structure') != structure:
+                    raise ValueError('Sample geometry changed; rerun Phase I')
+                p={key:float(p[key]) for key in ('a','b','c','q0','q1','d_nm')}
+                if not all(np.isfinite(v) for v in p.values()) or p['d_nm']<=0:
+                    raise ValueError('Invalid approved Phase I parameters')
+                phase1={'parameters':p,'thickness_nm':p['d_nm'],'wavelength_nm':s.wavelength_nm[mask].tolist(),'approved':True}
             if np.count_nonzero(mask)<8:
                 raise ValueError('Phase I initialization range requires at least 8 measured R/T points')
             if np.count_nonzero(mask)>=8:
-                phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns),thickness_estimate_nm=s.thickness_nm)
+                if phase1 is None:
+                    phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns),thickness_estimate_nm=s.thickness_nm)
                 s.thickness_nm=phase1['thickness_nm']
                 p=phase1['parameters']
                 x=800.0/s.wavelength_nm
