@@ -72,6 +72,15 @@ def scientific_acceptance():
         model_T=np.asarray(reference_data['T_fit'],float)
         metrics['forward_R_max_abs']=float(np.max(np.abs(R_fit-model_R)))
         metrics['forward_T_max_abs']=float(np.max(np.abs(T_fit-model_T)))
+        # Reference n/k accuracy is a separate, explicitly identified comparison.
+        ref=pd.read_csv(ROOT/'data/R6G_Singh.csv')
+        nw=np.asarray(ref['wavelength_um'],float)*1000
+        nref=np.interp(w,nw,np.asarray(ref['n'],float))
+        kref=np.interp(w,nw,np.asarray(ref['k'],float))
+        metrics['n_reference_mae']=float(np.mean(np.abs(n-nref)))
+        metrics['k_reference_mae']=float(np.mean(np.abs(k-kref)))
+        metrics['n_reference_rmse']=float(np.sqrt(np.mean((n-nref)**2)))
+        metrics['k_reference_rmse']=float(np.sqrt(np.mean((k-kref)**2)))
         limits={'forward_R_max_abs':1e-8,'forward_T_max_abs':1e-8}
         passed=all(metrics[key]<=value for key,value in limits.items())
         return jsonify({'passed':passed,'metrics':metrics,'limits':limits,
