@@ -227,8 +227,12 @@ def joint_fit_api():
         smooth=float(request.form.get('smoothness',.1))
         tolerance=float(request.form.get('thickness_tolerance',.15))
         optimizer=request.form.get('optimizer','multistart')
-        if not 4<=basis<=25 or not 5<=budget<=500 or not 0<=smooth<=100:
-            raise ValueError('Invalid basis, budget or smoothness')
+        if not 4<=basis<=40:
+            raise ValueError('Spline basis must be between 4 and 40')
+        if not 5<=budget<=500:
+            raise ValueError('Evaluation budget must be between 5 and 500')
+        if not 0<=smooth<=100:
+            raise ValueError('Regularization must be between 0 and 100')
         if not 0<tolerance<=.5:
             raise ValueError('Thickness tolerance must be between 0 and 0.5')
         if optimizer not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):
