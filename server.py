@@ -44,6 +44,11 @@ from analysis_methods import swanepoel, tauc
 from stack_models import stack_spectrum, ellipsometry
 from method_comparison import compare_methods
 
+@app.get('/api/benchmark/phase2-archive')
+def phase2_archive():
+    from historical_reference import archived_phase2
+    return jsonify(archived_phase2())
+
 @app.post('/api/original-inverse')
 def original_inverse():
     try:
