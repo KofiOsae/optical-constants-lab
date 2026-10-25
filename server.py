@@ -195,6 +195,8 @@ def custom_fit():
             result['initialization']={'method':'documented_phase1_multistart'}
             result['note']='Phase I weak-absorption Fresnel model; supports air/film/air and film on semi-infinite transparent substrate. Original R6G benchmark is freestanding.'
             return jsonify(result)
+        if request.form.get('reconstruction_model')=='historical_logk' and (s.R is None or s.T is None):
+            raise ValueError('Phase II requires both reflectance and transmittance')
         if request.form.get('reconstruction_model')=='historical_logk':
             phase1_lo=request.form.get('wavelength_min_nm')
             phase1_hi=request.form.get('wavelength_max_nm')
