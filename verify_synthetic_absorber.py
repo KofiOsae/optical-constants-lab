@@ -34,7 +34,10 @@ def run():
         training_rmse=fit['train_rmse'],holdout_rmse=fit['holdout_rmse'],
         n_mae=float(np.mean(np.abs(fit['n']-n))),
         k_mae=float(np.mean(np.abs(fit['k']-k))),
-        candidate_count=fit['candidate_count'],nfev=fit['nfev'],\n        blind_training_rmse=blind['train_rmse'],blind_holdout_rmse=blind['holdout_rmse'],\n        blind_n_mae=float(np.mean(np.abs(blind['n']-n))),blind_k_mae=float(np.mean(np.abs(blind['k']-k))),\n        blind_success=blind['success'],blind_candidate_count=blind['candidate_count'])
+        candidate_count=fit['candidate_count'],nfev=fit['nfev'],
+        blind_training_rmse=blind['train_rmse'],blind_holdout_rmse=blind['holdout_rmse'],
+        blind_n_mae=float(np.mean(np.abs(blind['n']-n))),blind_k_mae=float(np.mean(np.abs(blind['k']-k))),
+        blind_success=blind['success'],blind_candidate_count=blind['candidate_count'])
 
 if __name__=='__main__':
     print(json.dumps(run(),indent=2))
