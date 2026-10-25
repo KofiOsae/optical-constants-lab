@@ -13,7 +13,6 @@ def run():
     w=np.asarray(series['T']['x'],float)*1000
     R=np.asarray(series['R']['y'],float)
     T=np.asarray(series['T']['y'],float)
-    saved=np.load(ROOT/'data/r6g_phase1_verified.npz') if (ROOT/'data/r6g_phase1_verified.npz').exists() else None
     from phase1_fresnel import phase1_fit
     mask=(w>=690)&(w<=1000)
     phase1=phase1_fit(w[mask],R[mask],T[mask],starts_nm=[1000],max_nfev=300,reference_nm=800)
