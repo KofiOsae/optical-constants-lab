@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import least_squares
 from optical_inversion_package.inversion import coherent_film
 
-def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=250, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None):
+def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=1400, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None):
     w=np.asarray(wavelength_nm,float)
     R0=np.asarray(reflectance,float); T0=np.asarray(transmittance,float)
     if w.ndim!=1 or len(w)<8 or R0.shape!=w.shape or T0.shape!=w.shape:
@@ -12,7 +12,7 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
         raise ValueError('Phase I requires positive, strictly increasing wavelengths')
     if not np.isfinite(substrate_n) or substrate_n<1 or not np.isfinite(ambient_n) or ambient_n<=0:
         raise ValueError('Phase I requires known positive real substrate and ambient indices')
-    x=(float(np.median(w)) if reference_nm is None else float(reference_nm))/w
+    x=(800.0 if reference_nm is None else float(reference_nm))/w
     def forward(p):
         a,b,c,q0,q1,d=p
         n=a+b*x*x+c*x**4
@@ -22,13 +22,13 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
     def residual(p):
         n,k,R,T=forward(p)
         return np.r_[R-R0,T-T0]
-    lower=[1.,-3.,-3.,-30.,-40.,100.]
-    upper=[4.,3.,3.,0.,40.,5000.]
+    lower=[1.,-2.,-2.,-25.,-40.,200.]
+    upper=[3.,2.,2.,-2.,40.,2000.]
     starts=starts_nm if starts_nm is not None else [450,600,750,900,1000,1100,1250,1500]
     trials=[]
     for d in starts:
-        guess=[1.7375,-.0664,.1083,-9.23,12.56,float(d)]
-        sol=least_squares(residual,guess,bounds=(lower,upper),max_nfev=max_nfev)
+        guess=[1.73,-.065,.105,-9.2,12.5,float(d)]
+        sol=least_squares(residual,guess,bounds=(lower,upper),max_nfev=max_nfev,xtol=1e-11,ftol=1e-11,gtol=1e-11)
         rmse=float(np.sqrt(np.mean(residual(sol.x)**2)))
         trials.append((rmse,sol,float(d)))
     score,sol,start=min(trials,key=lambda item:item[0])
