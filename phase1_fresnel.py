@@ -1,6 +1,7 @@
 """Documented R6G Phase I: air/film/air coherent R/T inverse."""
 import numpy as np
 from scipy.optimize import least_squares
+from scipy.signal import find_peaks
 from optical_inversion_package.inversion import coherent_film
 
 def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nfev=1400, substrate_n=1.0, ambient_n=1.0, angle_deg=0.0, polarization='s', reference_nm=None, thickness_estimate_nm=None, thickness_tolerance=0.5):
@@ -43,7 +44,23 @@ def phase1_fit(wavelength_nm, reflectance, transmittance, starts_nm=None, max_nf
         trials.append((rmse,sol,float(d)))
     score,sol,start=min(trials,key=lambda item:item[0])
     n,k,R,T=forward(sol.x)
-    return dict(geometry='freestanding' if abs(substrate_n-ambient_n)<1e-9 else 'film_on_semi_infinite_substrate',wavelength_nm=w.tolist(),n=n.tolist(),k=k.tolist(),
+    group_index=sol.x[0]+3*sol.x[1]*x*x+5*sol.x[2]*x**4
+    # Same-type adjacent extrema: optical phase advances by pi.
+    # Use fitted dispersion only for a post-fit thickness cross-check;
+    # this is not an independent estimate of n_g or film thickness.
+    extrema=[]
+    for kind,indices in [('maxima',find_peaks(T0,prominence=.005)[0]),('minima',find_peaks(-T0,prominence=.005)[0])]:
+        for i,j in zip(indices[:-1],indices[1:]):
+            wl1,wl2=float(w[i]),float(w[j])
+            z=np.linspace(wl1,wl2,128)
+            xx=(800.0 if reference_nm is None else float(reference_nm))/z
+            ng=sol.x[0]+3*sol.x[1]*xx**2+5*sol.x[2]*xx**4
+            integral=float(np.trapezoid(ng/z**2,z))
+            if integral>0:
+                extrema.append(dict(type=kind,wavelengths_nm=[wl1,wl2],thickness_nm=float(1/(2*integral))))
+    fringe_thickness=float(np.median([e['thickness_nm'] for e in extrema])) if extrema else None
+    return dict(group_index=group_index.tolist(),fringe_thickness_nm=fringe_thickness,
+                fringe_pairs=extrema,fringe_diagnostic_note='Uses fitted dispersion; consistency check only, not independent thickness identification.',geometry='freestanding' if abs(substrate_n-ambient_n)<1e-9 else 'film_on_semi_infinite_substrate',wavelength_nm=w.tolist(),n=n.tolist(),k=k.tolist(),
                 R_fit=R.tolist(),T_fit=T.tolist(),R_measured=R0.tolist(),
                 T_measured=T0.tolist(),thickness_nm=float(sol.x[5]),rmse=score,
                 parameters=dict(zip(('a','b','c','q0','q1','d_nm'),map(float,sol.x))),
