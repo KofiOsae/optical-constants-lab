@@ -1,0 +1,28 @@
+name: End-to-end optical inversion research verification
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'verify_phase2_end_to_end.py'
+      - 'engine.py'
+      - 'phase1_fresnel.py'
+      - 'optical_inversion_package/inversion.py'
+      - 'data/original_plot_raw_7.json'
+      - '.github/workflows/research-validation.yml'
+jobs:
+  r6g-end-to-end:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Execute independent Phase I to Phase II inversion
+        run: python verify_phase2_end_to_end.py | tee phase2_verification_result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r6g-phase2-verification
+          path: phase2_verification_result.json
