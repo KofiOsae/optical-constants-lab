@@ -226,9 +226,9 @@ def custom_fit():
                 'train_rmse':historical['train_rmse'],'holdout_rmse':historical['holdout_rmse'],
                 'split':['train' if v else 'holdout' for v in historical['train_mask']],
                 'success':bool(historical['result'].success),
-                'message':str(historical['result'].message),
+                'message':str(historical['result'].message),'phase2_nfev':historical['nfev'],
                 'initialization':{'method':'phase1_fresnel' if phase1 else historical['initialization']},'phase1':phase1,
-                'note':'Historical n/log(k) spline; every fifth wavelength withheld; fixed thickness. Original warm-start not reproduced.'})
+                'note':'Natural cubic n/log(k) spline; every fifth wavelength withheld; fixed thickness. Original archived warm-start is not automatically available for arbitrary samples.'})
         result=fit([s],settings)
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
