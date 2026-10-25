@@ -25,17 +25,17 @@ document.querySelectorAll('.lab-tabs .tab').forEach(button=>button.addEventListe
 document.getElementById('classical_target').appendChild(document.getElementById('classical_controls'));
 let benchmarkReference=null, lastCustomResult=null;
 function overlayReference(d){
- const traces=[{x:d.wavelength_nm,y:d.n,name:'Recovered n'},{x:d.wavelength_nm,y:d.k,name:'Recovered k'}];
+ const traces=opticalSeries(d.wavelength_nm,d.n,d.k,singleOpticalView,'Recovered ');
  if(benchmarkReference){
   const reference=benchmarkReference;
   const common=d.wavelength_nm.map((w,i)=>({w,i})).filter(v=>v.w>=reference.w[0]&&v.w<=reference.w.at(-1));
   const interp=(w,y)=>{let j=1;while(j<reference.w.length-1&&reference.w[j]<w)j++;let f=(w-reference.w[j-1])/(reference.w[j]-reference.w[j-1]);return y[j-1]*(1-f)+y[j]*f;};
   const x=common.map(v=>v.w),n=common.map(v=>interp(v.w,reference.n)),k=common.map(v=>interp(v.w,reference.k));
-  traces.push({x,y:n,name:'Reference n',line:{dash:'dash'}},{x,y:k,name:'Reference k',line:{dash:'dash'}});
+  traces.push(...opticalSeries(x,n,k,singleOpticalView,'Reference ',true));
   const rmse=(truth,key)=>Math.sqrt(common.reduce((a,v,i)=>a+(truth[i]-d[key][v.i])**2,0)/common.length);
   document.getElementById('reference_nk_status').textContent=common.length?'Reference overlap: '+common.length+' points ('+x[0]+'–'+x.at(-1)+' nm); n RMSE '+rmse(n,'n').toFixed(5)+'; k RMSE '+rmse(k,'k').toFixed(5):'No overlapping wavelengths; reference not extrapolated.';
  }
- plot('custom_nk',traces,{title:'Reconstructed vs reference optical constants',xaxis:{title:'Wavelength (nm)'},shapes:wavelengthBoundaryShapes()});
+ plot('custom_nk',traces,{title:singleOpticalView==='eps'?'Recovered vs reference dielectric function':'Reconstructed vs reference optical constants',xaxis:{title:'Wavelength (nm)'},shapes:wavelengthBoundaryShapes()});
 }
 document.getElementById('reference_nk_file').addEventListener('change',async e=>{
  try{
@@ -196,6 +196,41 @@ $('compare_run').onclick=async()=>{const b=$('compare_run');b.disabled=true;cons
  for(const el of [nk,rt,$('joint_nk'),$('joint_rt')]){el.classList.add('compact-plot');}
 })();
 
+// Optical-constant presentation is a client-side transformation; fitting is unchanged.
+let jointOpticalResult=null;
+const opticalToggle=document.createElement('div');
+opticalToggle.className='workflow-switch';
+opticalToggle.innerHTML='<button type="button" id="optical_nk" class="mode-choice active" aria-pressed="true">n and k</button><button type="button" id="optical_eps" class="mode-choice" aria-pressed="false">ε′ and ε″</button>';
+$('custom_nk').parentNode.insertBefore(opticalToggle,$('custom_nk'));
+const jointToggle=opticalToggle.cloneNode(true);
+jointToggle.querySelector('#optical_nk').id='joint_optical_nk';
+jointToggle.querySelector('#optical_eps').id='joint_optical_eps';
+$('joint_nk').parentNode.insertBefore(jointToggle,$('joint_nk'));
+let singleOpticalView='nk',jointOpticalView='nk';
+function opticalSeries(w,n,k,view,prefix='',dash=false){
+ const epsilon=view==='eps';
+ const y1=epsilon?n.map((v,i)=>v*v-k[i]*k[i]):n;
+ const y2=epsilon?n.map((v,i)=>2*v*k[i]):k;
+ return [{x:w,y:y1,name:prefix+(epsilon?'ε′':'n'),line:dash?{dash:'dash'}:{}},
+         {x:w,y:y2,name:prefix+(epsilon?'ε″':'k'),line:dash?{dash:'dash'}:{}}];
+}
+function setOpticalToggle(prefix,view){
+ for(const [key,active] of [['nk',view==='nk'],['eps',view==='eps']]){
+  const b=$(prefix+'optical_'+key);b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));
+ }
+}
+function renderJointOptical(){
+ if(!jointOpticalResult)return;
+ const d=jointOpticalResult;
+ plot('joint_nk',opticalSeries(d.wavelength_nm,d.n,d.k,jointOpticalView),{
+  title:jointOpticalView==='eps'?'Recovered dielectric function ε′, ε″':'Recovered refractive index n, k',
+  xaxis:{title:'Wavelength (nm)'},yaxis:{title:jointOpticalView==='eps'?'Relative permittivity':'Optical constants'}});
+}
+$('optical_nk').onclick=()=>{singleOpticalView='nk';setOpticalToggle('','nk');if(lastCustomResult)overlayReference(lastCustomResult);};
+$('optical_eps').onclick=()=>{singleOpticalView='eps';setOpticalToggle('','eps');if(lastCustomResult)overlayReference(lastCustomResult);};
+$('joint_optical_nk').onclick=()=>{jointOpticalView='nk';setOpticalToggle('joint_','nk');renderJointOptical();};
+$('joint_optical_eps').onclick=()=>{jointOpticalView='eps';setOpticalToggle('joint_','eps');renderJointOptical();};
+
 // Joint multi-spectrum upload and reconstruction.
 $('joint_files').onchange=()=>{
   const files=[...$('joint_files').files];
@@ -235,7 +270,7 @@ $('joint_run').onclick=async()=>{
     fd.append('optimizer','multistart');
     const d=await apiJson('/api/joint-fit',{method:'POST',body:fd});
     $('joint_metrics').textContent='Weighted RMSE: '+d.weighted_rmse.toFixed(4)+' | '+d.predictions.map(p=>p.name+': RMSE '+p.rmse.toFixed(4)+', d='+p.thickness_nm.toFixed(1)+' nm').join(' | ');
-    plot('joint_nk',[{x:d.wavelength_nm,y:d.n,name:'Shared n'},{x:d.wavelength_nm,y:d.k,name:'Shared k'}],{title:'Jointly recovered optical constants',xaxis:{title:'Wavelength (nm)'}});
+    jointOpticalResult=d;renderJointOptical();
     const traces=[];
     d.predictions.forEach(p=>{for(const ch of ['R','T']){if(p[ch+'_measured']){traces.push({x:p.wavelength_nm,y:p[ch+'_measured'],name:p.name+' '+ch+' observed'});traces.push({x:p.wavelength_nm,y:p[ch+'_fit'],name:p.name+' '+ch+' fitted',line:{dash:'dash'}});}}});
     plot('joint_rt',traces,{title:'All measured and fitted spectra',xaxis:{title:'Wavelength (nm)'}});
