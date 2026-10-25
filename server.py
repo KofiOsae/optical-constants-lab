@@ -233,7 +233,7 @@ def custom_fit():
                 'train_rmse':historical['train_rmse'],'holdout_rmse':historical['holdout_rmse'],
                 'split':['train' if v else 'holdout' for v in historical['train_mask']],
                 'success':bool(historical['result'].success),
-                'message':str(historical['result'].message),'phase2_nfev':historical['nfev'],
+                'message':str(historical['result'].message),'phase2_nfev':historical['nfev'],'phase2_candidate_count':historical['candidate_count'],'phase2_regularized_objective':historical['regularized_objective'],
                 'initialization':{'method':'sample_specific_broadband_plus_phase1_hybrid','broadband_nfev':broadband['nfev'],'broadband_success':broadband['success'],'transition_nm':690.0},'phase1':phase1,
                 'note':'Sample-specific broadband R/T initializer plus Phase I above 690 nm; Phase II holds out every fifth wavelength. Historical R6G archive is not used for user samples.'})
         result=fit([s],settings)
