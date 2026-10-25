@@ -258,7 +258,7 @@ def custom_fit():
         if request.form.get('reconstruction_model')=='phase1':
             if s.R is None or s.T is None:
                 raise ValueError('Phase I requires both R and T')
-            result=phase1_fit(s.wavelength_nm,s.R,s.T,max_nfev=budget,substrate_n=float(ns))
+            result=phase1_fit(s.wavelength_nm,s.R,s.T,max_nfev=budget,substrate_n=float(ns),thickness_estimate_nm=s.thickness_nm)
             result['initialization']={'method':'documented_phase1_multistart'}
             result['note']='Phase I weak-absorption Fresnel model; supports air/film/air and film on semi-infinite transparent substrate. Original R6G benchmark is freestanding.'
             return jsonify(result)
@@ -277,7 +277,7 @@ def custom_fit():
             if np.count_nonzero(mask)<8:
                 raise ValueError('Phase I initialization range requires at least 8 measured R/T points')
             if np.count_nonzero(mask)>=8:
-                phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns))
+                phase1=phase1_fit(s.wavelength_nm[mask],s.R[mask],s.T[mask],max_nfev=budget,substrate_n=float(ns),thickness_estimate_nm=s.thickness_nm)
                 s.thickness_nm=phase1['thickness_nm']
                 p=phase1['parameters']
                 x=800.0/s.wavelength_nm
