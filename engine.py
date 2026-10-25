@@ -236,7 +236,20 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
         from types import SimpleNamespace
         result=SimpleNamespace(x=x0,success=True,message='Archived coefficients evaluated without optimization',nfev=0)
     else:
-        result=least_squares(residual,np.clip(x0,lower+1e-9,upper-1e-9),bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
+        # Distinct physically admissible starts mitigate local-minimum dependence.
+        # All candidates use the identical train/holdout split and regularization.
+        seeds=[x0]
+        if warm_start is not None:
+            seeds.append(np.r_[np.full(nodes,1.75),np.full(nodes,np.log(.03))])
+        else:
+            seeds.extend([np.r_[np.full(nodes,1.7),np.full(nodes,np.log(.03))],
+                          np.r_[np.full(nodes,1.9),np.full(nodes,np.log(.12))]])
+        trials=[]
+        for seed in seeds:
+            candidate=least_squares(residual,np.clip(seed,lower+1e-9,upper-1e-9),
+                bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
+            trials.append(candidate)
+        result=min(trials,key=lambda trial: float(np.sum(residual(trial.x)**2)))
 
     n,k=values(result.x,w)
     R,T=predict(result.x)
@@ -244,4 +257,4 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
         return float(np.sqrt(np.mean(np.r_[(T-spectrum.T)[mask],(R-spectrum.R)[mask]]**2)))
     return {'result':result,'n':n,'k':k,'R':R,'T':T,
             'train_rmse':rmse(train),'holdout_rmse':rmse(holdout),
-            'train_mask':train,'nodes':nodes,'initialization':('saved coefficients' if warm_start is not None else 'provided n/k seed' if n_seed is not None else 'flat seed'),'success':bool(result.success),'message':str(result.message),'nfev':int(result.nfev)}
+            'train_mask':train,'nodes':nodes,'initialization':('saved coefficients' if warm_start is not None else 'provided n/k seed' if n_seed is not None else 'flat seed'),'success':bool(result.success),'message':str(result.message),'nfev':int(result.nfev),'candidate_count':(len(trials) if max_nfev!=0 else 1),'regularized_objective':float(np.sum(residual(result.x)**2))}
