@@ -175,7 +175,11 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
     def residual(q):
         R,T=predict(q)
         return np.r_[(T-spectrum.T)[train],(R-spectrum.R)[train],.009*np.diff(q[:nodes],2),.0015*np.diff(q[nodes:],2)]
-    result=least_squares(residual,np.clip(x0,lower+1e-9,upper-1e-9),bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
+    if max_nfev == 0:
+        from types import SimpleNamespace
+        result=SimpleNamespace(x=x0,success=True,message='Archived coefficients evaluated without optimization',nfev=0)
+    else:
+        result=least_squares(residual,np.clip(x0,lower+1e-9,upper-1e-9),bounds=(lower,upper),max_nfev=max_nfev,ftol=1e-7,xtol=1e-7,gtol=1e-7)
 
     n,k=values(result.x,w)
     R,T=predict(result.x)
