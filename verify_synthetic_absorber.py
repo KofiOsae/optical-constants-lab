@@ -28,6 +28,14 @@ def run():
     p=dict(a=1.7,b=0.,c=0.,q0=float(np.log(.03)),q1=0.)
     hybrid=phase2_hybrid_seed(w,w,broad['n'],broad['k'],p,nodes=25)
     blind=fit_historical_logk(s,nodes=25,max_nfev=85,warm_start=hybrid)
+    # Repeat the blind fit with independent, physically plausible seeds.
+    # This tests sensitivity without introducing ground-truth information.
+    seed_trials=[]
+    for n_guess,k_guess in ((1.5,.01),(1.7,.03),(1.9,.10),(2.1,.20)):
+        trial=fit_historical_logk(s,nodes=25,max_nfev=85,
+            n_seed=np.full_like(w,n_guess),k_seed=np.full_like(w,k_guess))
+        seed_trials.append((trial['train_rmse'],n_guess,k_guess,trial))
+    best_blind=min(seed_trials,key=lambda item:item[0])[3]
     fit=fit_historical_logk(s,nodes=25,max_nfev=85,n_seed=n,k_seed=k)
     return dict(dataset='synthetic absorbing dye-like thin film (not literature experiment)',
         thickness_nm=d,noise_sigma=.001,phase2_success=fit['success'],
@@ -37,7 +45,11 @@ def run():
         candidate_count=fit['candidate_count'],nfev=fit['nfev'],
         blind_training_rmse=blind['train_rmse'],blind_holdout_rmse=blind['holdout_rmse'],
         blind_n_mae=float(np.mean(np.abs(blind['n']-n))),blind_k_mae=float(np.mean(np.abs(blind['k']-k))),
-        blind_success=blind['success'],blind_candidate_count=blind['candidate_count'])
+        blind_success=blind['success'],blind_candidate_count=blind['candidate_count'],
+        multiseed_training_rmse=best_blind['train_rmse'],multiseed_holdout_rmse=best_blind['holdout_rmse'],
+        multiseed_n_mae=float(np.mean(np.abs(best_blind['n']-n))),
+        multiseed_k_mae=float(np.mean(np.abs(best_blind['k']-k))),
+        multiseed_trial_count=len(seed_trials))
 
 if __name__=='__main__':
     print(json.dumps(run(),indent=2))
