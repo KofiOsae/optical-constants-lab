@@ -199,13 +199,13 @@ def compare_methods_api():
 
 @app.post('/api/joint-fit')
 def joint_fit_api():
-    """Fit shared optical constants to 2-12 uploaded thin-film spectra."""
+    """Fit 1-12 thin-film spectra; one-film fits require a transparent dispersion model."""
     try:
         import json
         uploads=request.files.getlist('spectra')
         configs=json.loads(request.form.get('configurations','[]'))
-        if not 2<=len(uploads)<=12 or not isinstance(configs,list) or len(configs)!=len(uploads):
-            raise ValueError('Supply 2-12 spectra and matching configurations')
+        if not 1<=len(uploads)<=12 or not isinstance(configs,list) or len(configs)!=len(uploads):
+            raise ValueError('Supply 1-12 spectra and matching configurations')
         spectra=[]
         for upload,c in zip(uploads,configs):
             if not isinstance(c,dict):
@@ -242,6 +242,8 @@ def joint_fit_api():
             thickness_tolerance=tolerance)
         method=request.form.get('joint_method','two_stage')
         if method not in ('two_stage','direct','lorentz','drude_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
+        if len(spectra)==1 and method not in ('cauchy','sellmeier'):
+            raise ValueError('Single-film fitting currently supports Cauchy or Sellmeier only')
         holdout=int(request.form.get('holdout_index','-1'))
         if holdout < -1 or holdout >= len(spectra): raise ValueError('Invalid holdout index')
         if holdout >= 0 and len(spectra)<3: raise ValueError('Holdout validation needs at least 3 films')
