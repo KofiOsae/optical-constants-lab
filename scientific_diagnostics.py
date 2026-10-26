@@ -16,7 +16,7 @@ def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
         eps+=strength*center**2/(center**2-E**2-1j*width*E)
     return eps
 
-def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026):
+def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None):
     if model not in ('lorentz','drude_lorentz') or not 1<=oscillators<=3:
         raise ValueError('Choose 1–3 Lorentz oscillators, optionally with Drude term')
     allw=np.concatenate([s.wavelength_nm for s in spectra]);elo=1239.841984/max(allw);ehi=1239.841984/min(allw)
@@ -41,6 +41,15 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
         return np.array(out)
     if not isinstance(multistart,int) or not 1 <= multistart <= 50:
         raise ValueError('multistart must be an integer from 1 to 50')
+    if warm_start is not None:
+        previous=np.asarray(warm_start,dtype=float)
+        offset=3 if model=='drude_lorentz' else 1
+        expected=offset+3*(oscillators-1)
+        if fit_thickness: raise ValueError('Warm start requires fixed film thicknesses')
+        if previous.shape!=(expected,) or not np.all(np.isfinite(previous)):
+            raise ValueError('Warm-start coefficients must represent the same causal model with one fewer oscillator')
+        x[:expected]=previous
+        x[expected:expected+3]=[1e-6,float(np.clip((elo+ehi)/2,.05,max(10.,2*ehi))),.1]
     rng=np.random.default_rng(random_seed)
     candidates=[]
     for run in range(multistart):
@@ -66,7 +75,7 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
     return dict(result=result,optical_constants=lambda w:optical(w,p),
         thicknesses=p[-len(spectra):] if fit_thickness else nom,
         weighted_rmse=float(np.sqrt(np.mean(residual(p)**2))),
-        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'start_results':[{'initialization':int(start),'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'status':int(trial.status),'nfev':int(trial.nfev),'message':str(trial.message),'selected':bool(i==0),'coefficients':trial.x.tolist()} for i,(score,trial,start) in enumerate(candidates)]},
+        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'warm_start_used':warm_start is not None,'start_results':[{'initialization':int(start),'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'status':int(trial.status),'nfev':int(trial.nfev),'message':str(trial.message),'selected':bool(i==0),'coefficients':trial.x.tolist()} for i,(score,trial,start) in enumerate(candidates)]},
         model=model)
 
 def jacobian_report(result, noise_is_known=True):
