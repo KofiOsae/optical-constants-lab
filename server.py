@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 ROOT=Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT))
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, send_file
 import os
 import numpy as np
 import pandas as pd
@@ -449,3 +449,21 @@ def fit_api():
 
 if __name__=='__main__':
     app.run(host=os.environ.get('HOST','127.0.0.1'),port=int(os.environ.get('PORT','8765')),debug=False)
+
+@app.post('/api/export-causal-workbook')
+def export_causal_workbook():
+    try:
+        from model_workbook import build_model_workbook
+        payload=request.get_json(force=True)
+        model=payload['model']
+        coefficients=payload['coefficients']
+        wavelengths=payload['wavelength_nm']
+        if len(wavelengths)>10000 or len(coefficients)>12:
+            raise ValueError('Workbook size exceeds allowed limits')
+        import numpy as np
+        if not np.all(np.isfinite(np.asarray(coefficients,dtype=float))) or not np.all(np.isfinite(np.asarray(wavelengths,dtype=float))) or np.any(np.asarray(wavelengths,dtype=float)<=0):
+            raise ValueError('Wavelengths and coefficients must be finite and wavelengths positive')
+        book=build_model_workbook(model,coefficients,wavelengths,payload.get('metadata',{}))
+        return send_file(book,as_attachment=True,download_name='fitted_optical_model.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    except (ValueError,TypeError,KeyError) as exc:
+        return jsonify({'error':str(exc)}),400
