@@ -248,7 +248,7 @@ def joint_fit_api():
         training=[sp for i,sp in enumerate(spectra) if i!=holdout]
         if method in ('lorentz','drude_lorentz'):
             from scientific_diagnostics import fit_causal
-            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness)
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')))
         else:
             outcome=fit_joint_two_stage(training,settings) if method=='two_stage' else fit(training,settings)
         grid=np.unique(np.concatenate([s.wavelength_nm for s in training]))
