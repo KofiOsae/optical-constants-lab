@@ -246,6 +246,21 @@ def joint_fit_api():
         if holdout < -1 or holdout >= len(spectra): raise ValueError('Invalid holdout index')
         if holdout >= 0 and len(spectra)<3: raise ValueError('Holdout validation needs at least 3 films')
         training=[sp for i,sp in enumerate(spectra) if i!=holdout]
+        # Stable fingerprint of the numerical training problem, independent of filenames.
+        import hashlib
+        fingerprint=hashlib.sha256()
+        for spec in training:
+            for values in (spec.wavelength_nm,spec.R,spec.T):
+                if values is None:
+                    fingerprint.update(b'NONE')
+                else:
+                    arr=np.asarray(values,dtype='<f8')
+                    fingerprint.update(str(arr.shape).encode('ascii'))
+                    fingerprint.update(arr.tobytes())
+            fingerprint.update(np.asarray([spec.thickness_nm,spec.substrate_n,spec.ambient_n,spec.angle_deg,spec.sigma_R,spec.sigma_T],dtype='<f8').tobytes())
+            fingerprint.update(str(spec.polarization).encode('utf-8'))
+        training_fingerprint=fingerprint.hexdigest()
+
         if method in ('lorentz','drude_lorentz'):
             from scientific_diagnostics import fit_causal
             outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None))
@@ -268,7 +283,7 @@ def joint_fit_api():
         from scientific_diagnostics import jacobian_report
         diagnostics=jacobian_report(outcome['result'])
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
-            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],stages=outcome.get('stages'),
+            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
             note='Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
