@@ -16,7 +16,7 @@ def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
         eps+=strength*center**2/(center**2-E**2-1j*width*E)
     return eps
 
-def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False):
+def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026):
     if model not in ('lorentz','drude_lorentz') or not 1<=oscillators<=3:
         raise ValueError('Choose 1–3 Lorentz oscillators, optionally with Drude term')
     allw=np.concatenate([s.wavelength_nm for s in spectra]);elo=1239.841984/max(allw);ehi=1239.841984/min(allw)
@@ -39,12 +39,34 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
             if s.R is not None:out.extend((R-s.R)/s.sigma_R)
             if s.T is not None:out.extend((T-s.T)/s.sigma_T)
         return np.array(out)
-    result=least_squares(residual,x,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
+    if not isinstance(multistart,int) or not 1 <= multistart <= 50:
+        raise ValueError('multistart must be an integer from 1 to 50')
+    rng=np.random.default_rng(random_seed)
+    candidates=[]
+    for run in range(multistart):
+        seed=x.copy()
+        if run:
+            seed[0]=rng.uniform(1.0,6.0)
+            offset=3 if model=='drude_lorentz' else 1
+            if model=='drude_lorentz':
+                seed[1:3]=[rng.uniform(.05,2.0),rng.uniform(.02,1.0)]
+            for j in range(oscillators):
+                idx=offset+3*j
+                seed[idx:idx+3]=[rng.uniform(.05,2.0),
+                    rng.uniform(max(.05,elo*.75),min(hi[idx+1],ehi*1.25)),
+                    rng.uniform(.02,.6)]
+            if fit_thickness:
+                seed[-len(spectra):]=nom*rng.uniform(.98,1.02,size=len(spectra))
+        seed=np.clip(seed,lo+1e-9*(hi-lo),hi-1e-9*(hi-lo))
+        trial=least_squares(residual,seed,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
+        candidates.append((float(np.mean(trial.fun**2)),trial))
+    candidates.sort(key=lambda item:item[0])
+    result=candidates[0][1]
     p=result.x.copy()
     return dict(result=result,optical_constants=lambda w:optical(w,p),
         thicknesses=p[-len(spectra):] if fit_thickness else nom,
         weighted_rmse=float(np.sqrt(np.mean(residual(p)**2))),
-        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist()},
+        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'start_results':[{'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'coefficients':trial.x.tolist()} for score,trial in candidates]},
         model=model)
 
 def jacobian_report(result, noise_is_known=True):
