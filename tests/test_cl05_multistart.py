@@ -11,12 +11,12 @@ class SyntheticSpectrum:
         self.substrate_n=1.46
         self.ambient_n=1.
         self.angle_deg=0.
-        self.polarization='TE'
+        self.polarization='s'
         self.sigma_R=np.ones_like(self.wavelength_nm)
         self.sigma_T=np.ones_like(self.wavelength_nm)
         params=np.array([2.5,.45,1.6,.12,.65,2.2,.18])
         nk=np.sqrt(dielectric(self.wavelength_nm,params,'lorentz',2))
-        self.R,self.T=coherent_film(self.wavelength_nm,nk,thickness_nm,1.46,1.,0.,'TE')
+        self.R,self.T=coherent_film(self.wavelength_nm,nk,thickness_nm,1.46,1.,0.,'s')
 
 def test_default_single_start_matches_explicit():
     data=[SyntheticSpectrum(500.),SyntheticSpectrum(1000.)]
