@@ -241,7 +241,7 @@ def joint_fit_api():
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
             thickness_tolerance=tolerance)
         method=request.form.get('joint_method','two_stage')
-        if method not in ('two_stage','direct','lorentz','drude_lorentz'): raise ValueError('Unknown joint method')
+        if method not in ('two_stage','direct','lorentz','drude_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         holdout=int(request.form.get('holdout_index','-1'))
         if holdout < -1 or holdout >= len(spectra): raise ValueError('Invalid holdout index')
         if holdout >= 0 and len(spectra)<3: raise ValueError('Holdout validation needs at least 3 films')
@@ -264,6 +264,9 @@ def joint_fit_api():
         if method in ('lorentz','drude_lorentz'):
             from scientific_diagnostics import fit_causal
             outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None))
+        elif method in ('cauchy','sellmeier'):
+            from dispersion_models import fit_transparent_spectra
+            outcome=fit_transparent_spectra(training,method,budget,settings.fit_thickness)
         else:
             outcome=fit_joint_two_stage(training,settings) if method=='two_stage' else fit(training,settings)
         grid=np.unique(np.concatenate([s.wavelength_nm for s in training]))
