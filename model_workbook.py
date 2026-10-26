@@ -29,7 +29,7 @@ def build_model_workbook(model, coefficients, wavelengths_nm, metadata=None):
         real_terms=[];imag_terms=[]
         for j in range(count):
             first=offset+3*j+2 # Excel parameter row (zero-based coefficient index + 2)
-            f=f'Parameters!$B${first}'.replace('\\$','$')
+            f=f'Parameters!$B${first}'
             e=f'Parameters!$B${first+1}'.replace('\\$','$')
             g=f'Parameters!$B${first+2}'.replace('\\$','$')
             a=f'({e}^2-B{row}^2)'
