@@ -59,14 +59,14 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
                 seed[-len(spectra):]=nom*rng.uniform(.98,1.02,size=len(spectra))
         seed=np.clip(seed,lo+1e-9*(hi-lo),hi-1e-9*(hi-lo))
         trial=least_squares(residual,seed,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
-        candidates.append((float(np.mean(trial.fun**2)),trial))
+        candidates.append((float(np.mean(trial.fun**2)),trial,run+1))
     candidates.sort(key=lambda item:item[0])
     result=candidates[0][1]
     p=result.x.copy()
     return dict(result=result,optical_constants=lambda w:optical(w,p),
         thicknesses=p[-len(spectra):] if fit_thickness else nom,
         weighted_rmse=float(np.sqrt(np.mean(residual(p)**2))),
-        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'start_results':[{'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'coefficients':trial.x.tolist()} for score,trial in candidates]},
+        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'start_results':[{'initialization':int(start),'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'status':int(trial.status),'nfev':int(trial.nfev),'message':str(trial.message),'selected':bool(i==0),'coefficients':trial.x.tolist()} for i,(score,trial,start) in enumerate(candidates)]},
         model=model)
 
 def jacobian_report(result, noise_is_known=True):
