@@ -14,5 +14,5 @@ jobs:
           python-version: '3.11'
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Multilayer forward validation
-        run: python -m pytest tests/test_multilayer_forward.py -q
+      - name: Multilayer forward and inverse validation
+        run: python -m pytest tests/test_multilayer_forward.py tests/test_multilayer_inverse.py -q
