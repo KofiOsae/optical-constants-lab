@@ -222,6 +222,17 @@ def joint_fit_api():
                 raise ValueError('Polarization must be s or p')
             spec.name=str(c.get('name',upload.filename or 'spectrum'))[:100]
             spectra.append(spec)
+        wavelength_min=float(request.form.get('wavelength_min_nm','0') or 0)
+        wavelength_max=float(request.form.get('wavelength_max_nm','1e12') or 1e12)
+        if not (np.isfinite(wavelength_min) and np.isfinite(wavelength_max) and 0<=wavelength_min<wavelength_max):
+            raise ValueError('Invalid joint wavelength interval')
+        for spec in spectra:
+            mask=(spec.wavelength_nm>=wavelength_min)&(spec.wavelength_nm<=wavelength_max)
+            if np.count_nonzero(mask)<5:
+                raise ValueError(f'{spec.name}: fewer than five wavelengths in selected interval')
+            spec.wavelength_nm=spec.wavelength_nm[mask]
+            if spec.R is not None: spec.R=spec.R[mask]
+            if spec.T is not None: spec.T=spec.T[mask]
         basis=int(request.form.get('basis',10))
         budget=int(request.form.get('max_nfev',180))
         smooth=float(request.form.get('smoothness',.1))
