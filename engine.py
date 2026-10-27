@@ -18,6 +18,9 @@ class FitSettings:
     noise_floor:float=.005
     initial_n:object=None
     initial_thickness_nm:float=None
+    n_min:float=0.05
+    n_max:float=8.0
+    k_max:float=6.0
 
 def validate_spectra(spectra):
     if not spectra: raise ValueError('At least one spectrum is required')
@@ -38,8 +41,8 @@ def make_problem(spectra,settings):
     lo=min(float(s.wavelength_nm[0]) for s in spectra); hi=max(float(s.wavelength_nm[-1]) for s in spectra)
     mats=[spline_design(s.wavelength_nm,lo,hi,m) for s in spectra]
     thicknesses=np.array([s.thickness_nm for s in spectra]); n_thick=len(spectra) if settings.fit_thickness else 0
-    lower=np.r_[np.full(m,1.),np.zeros(m),thicknesses*(1-settings.thickness_tolerance) if n_thick else []]
-    upper=np.r_[np.full(m,4.),np.full(m,2.),thicknesses*(1+settings.thickness_tolerance) if n_thick else []]
+    lower=np.r_[np.full(m,settings.n_min),np.zeros(m),thicknesses*(1-settings.thickness_tolerance) if n_thick else []]
+    upper=np.r_[np.full(m,settings.n_max),np.full(m,settings.k_max),thicknesses*(1+settings.thickness_tolerance) if n_thick else []]
     x0=np.r_[np.full(m,1.75),np.full(m,.05),thicknesses if n_thick else []]
     if settings.initial_n is not None:
         seed_w, seed_n = settings.initial_n
@@ -137,8 +140,8 @@ def fit_joint_two_stage(spectra, settings):
     validate_spectra(spectra)
     nominal=np.array([s.thickness_nm for s in spectra],float)
     count=len(spectra) if settings.fit_thickness else 0
-    low=np.r_[1.0,-1.0,-1.0,-20.0,-8.0,nominal*(1-settings.thickness_tolerance) if count else []]
-    high=np.r_[4.0,1.0,1.0,0.0,8.0,nominal*(1+settings.thickness_tolerance) if count else []]
+    low=np.r_[settings.n_min,-1.0,-1.0,-20.0,-8.0,nominal*(1-settings.thickness_tolerance) if count else []]
+    high=np.r_[settings.n_max,1.0,1.0,np.log(settings.k_max),8.0,nominal*(1+settings.thickness_tolerance) if count else []]
     def evaluate(q, penalty=True):
         out=[]
         for j,s in enumerate(spectra):
