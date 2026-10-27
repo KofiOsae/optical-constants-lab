@@ -245,12 +245,12 @@ def estimate_broadband_seed(spectrum, n_seed, k_seed, nodes=25, max_nfev=55):
     lo=np.r_[np.full(nodes,1.),np.full(nodes,-20.)]
     hi=np.r_[np.full(nodes,4.),np.full(nodes,1.)]
     def objective(q):
-        n=CubicSpline(kn,q[:nodes],bc_type='natural')(w)
+        n=np.maximum(CubicSpline(kn,q[:nodes],bc_type='natural')(w),1e-6)
         k=np.exp(np.clip(CubicSpline(kn,q[nodes:],bc_type='natural')(w),-24,2))
         R,T=coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
         return np.r_[T-spectrum.T,R-spectrum.R,.012*np.diff(q[:nodes],2),.003*np.diff(q[nodes:],2)]
     sol=least_squares(objective,np.clip(q0,lo+1e-8,hi-1e-8),bounds=(lo,hi),max_nfev=max_nfev,ftol=1e-6,xtol=1e-6,gtol=1e-6)
-    n=CubicSpline(kn,sol.x[:nodes],bc_type='natural')(w)
+    n=np.maximum(CubicSpline(kn,sol.x[:nodes],bc_type='natural')(w),1e-6)
     k=np.exp(np.clip(CubicSpline(kn,sol.x[nodes:],bc_type='natural')(w),-24,2))
     return {'n':n,'k':k,'nfev':int(sol.nfev),'success':bool(sol.success),'message':str(sol.message)}
 
@@ -269,7 +269,7 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
         raise ValueError('Historical spline requires both measured R and T')
     kn=np.linspace(w[0],w[-1],nodes)
     def values(q, wl):
-        nn=CubicSpline(kn,q[:nodes],bc_type='natural')(wl)
+        nn=np.maximum(CubicSpline(kn,q[:nodes],bc_type='natural')(wl),1e-6)
         kk=np.exp(np.clip(CubicSpline(kn,q[nodes:],bc_type='natural')(wl),-24,2))
         return nn,kk
     initial_n=np.full(nodes,1.75) if n_seed is None else np.interp(kn,w,np.asarray(n_seed))
