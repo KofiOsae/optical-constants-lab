@@ -1,0 +1,81 @@
+"""Dispersive multilayer joint inversion, isolated from existing single-film API.
+
+Known layers are wavelength-aligned with each StackSpectrum. One unknown
+material has shared dispersion; its thickness can vary by sample.
+"""
+import numpy as np
+from scipy.optimize import least_squares
+from optical_inversion_package.inversion import spline_design
+from scientific_diagnostics import dielectric, jacobian_report
+from multilayer_inverse import predict_stack
+
+def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
+                          oscillators=1, fit_thickness=False,
+                          thickness_bounds=None, max_nfev=250):
+    if not samples: raise ValueError('At least one sample is required')
+    if model not in ('spline','lorentz','drude_lorentz'):
+        raise ValueError('Unsupported dispersion model')
+    if model!='spline' and not 1<=oscillators<=3:
+        raise ValueError('Choose 1 to 3 oscillators')
+    wl=np.concatenate([np.asarray(s.wavelength_nm,float) for s,d in samples])
+    if np.any(~np.isfinite(wl)) or np.any(wl<=0):raise ValueError('Invalid wavelengths')
+    lowwl,highwl=float(wl.min()),float(wl.max())
+    if highwl<=lowwl:raise ValueError('Spectral range must be nonzero')
+    nom=np.array([float(d) for s,d in samples])
+    if np.any(nom<=0):raise ValueError('Positive thicknesses required')
+    if model=='spline':
+        if n_basis<4:raise ValueError('Cubic spline needs at least 4 basis functions')
+        B=[spline_design(s.wavelength_nm,lowwl,highwl,n_basis) for s,d in samples]
+        x=np.r_[np.full(n_basis,1.8),np.full(n_basis,.02)]
+        lo=np.r_[np.full(n_basis,.5),np.zeros(n_basis)]
+        hi=np.r_[np.full(n_basis,6.),np.full(n_basis,5.)]
+        def nk(w,p,b=None):
+            basis=b if b is not None else spline_design(w,lowwl,highwl,n_basis)
+            return basis@p[:n_basis],basis@p[n_basis:2*n_basis]
+    else:
+        elo,ehi=1239.841984/highwl,1239.841984/lowwl
+        x=[2.5];lo=[1.];hi=[25.]
+        if model=='drude_lorentz':
+            x.extend([.3,.15]);lo.extend([0.,.001]);hi.extend([10.,5.])
+        for e in np.linspace(elo,ehi,oscillators+2)[1:-1]:
+            x.extend([.3,float(e),.2])
+            lo.extend([0.,.05,.001]);hi.extend([20.,max(10.,2*ehi),5.])
+        x=np.asarray(x);lo=np.asarray(lo);hi=np.asarray(hi)
+        B=[None]*len(samples)
+        def nk(w,p,b=None):
+            z=np.sqrt(dielectric(w,p[:disp_count],model,oscillators)+0j)
+            return z.real,np.maximum(z.imag,0.)
+    disp_count=len(x)
+    if fit_thickness:
+        if thickness_bounds is None or len(thickness_bounds)!=len(samples):
+            raise ValueError('Provide per-sample thickness bounds')
+        lower=np.array([v[0] for v in thickness_bounds],float)
+        upper=np.array([v[1] for v in thickness_bounds],float)
+        if np.any(lower<=0) or np.any(lower>=upper):
+            raise ValueError('Invalid thickness bounds')
+        x=np.r_[x,nom];lo=np.r_[lo,lower];hi=np.r_[hi,upper]
+    def residual(p):
+        chunks=[]
+        for i,((s,d),b) in enumerate(zip(samples,B)):
+            n,k=nk(np.asarray(s.wavelength_nm,float),p,b)
+            thickness=p[disp_count+i] if fit_thickness else d
+            r,t=predict_stack(s,n,k,thickness)
+            for measured,predicted,sigma in ((s.R,r,s.sigma_R),(s.T,t,s.sigma_T)):
+                if measured is not None:
+                    obs=np.asarray(measured,float)
+                    if obs.shape!=r.shape or not np.all(np.isfinite(obs)) or sigma<=0:
+                        raise ValueError('Invalid measurements or uncertainties')
+                    chunks.append((predicted-obs)/sigma)
+        if model=='spline' and smoothness>0:
+            chunks.extend([np.sqrt(smoothness)*np.diff(p[:n_basis],2),
+                           np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)])
+        return np.concatenate(chunks)
+    if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial thickness outside bounds')
+    result=least_squares(residual,x,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
+    def optical_constants(w):
+        return nk(np.asarray(w,float),result.x)
+    return {'result':result,'optical_constants':optical_constants,
+            'thicknesses':result.x[disp_count:] if fit_thickness else nom,
+            'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
+            'sensitivity':jacobian_report(result),
+            'model':model,'dispersion_parameters':result.x[:disp_count].tolist()}
