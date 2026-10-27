@@ -88,7 +88,18 @@ def jacobian_report(result, noise_is_known=True):
     # Covariance is local linear approximation; do not interpret as global uniqueness.
     cov=np.linalg.pinv(J.T@J,rcond=1e-12)
     std=np.sqrt(np.maximum(0,np.diag(cov)))
-    return {'available':True,'rank':rank,'parameters':J.shape[1],
+    # Rank is a numerical property of the local Jacobian, not proof of unique n,k.
+    # A conservative warning avoids universal condition-number pass/fail thresholds.
+    smallest=float(s[-1]) if len(s) else 0.
+    largest=float(s[0]) if len(s) else 0.
+    relative_smallest=smallest/largest if largest>0 else 0.
+    warnings=[]
+    if rank<J.shape[1]: warnings.append('Local Jacobian is rank deficient: at least one parameter combination is not resolved.')
+    if relative_smallest<1e-6: warnings.append('Very weak local sensitivity direction (smallest/largest singular value < 1e-6); inspect parameter stability.')
+    if J.shape[0]<=J.shape[1]: warnings.append('Number of observations does not exceed the number of fitted parameters.')
+    if not warnings: warnings.append('No severe numerical warning detected; global uniqueness and model adequacy remain unverified.')
+    return {'available':True,'relative_smallest_singular_value':relative_smallest,
+      'identifiability_warnings':warnings,'rank':rank,'parameters':J.shape[1],
       'observations':J.shape[0],'condition_number':float(s[0]/s[-1]) if len(s) and s[-1]>0 else None,
       'singular_values':s.tolist(),'parameter_standard_errors_local':std.tolist(),
       'note':'Local linearized sensitivity; assumes independent, correctly normalized measurement errors. Does not prove global uniqueness. Regularization may affect the Jacobian.'}
