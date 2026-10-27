@@ -59,7 +59,11 @@ def make_problem(spectra,settings):
         out=[]
         for s,B,di in zip(spectra,mats,d):
             n=B@a; k=B@b
-            R,T=coherent_film(s.wavelength_nm,n+1j*k,di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            violation_n=np.maximum(1e-6-n,0.)
+            violation_k=np.maximum(-k,0.)
+            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*np.maximum(k,0.),di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            out.extend(1000.*violation_n)
+            out.extend(1000.*violation_k)
             if s.R is not None: out.extend((R-s.R)/s.sigma_R)
             if s.T is not None: out.extend((T-s.T)/s.sigma_T)
         if include_penalty:
@@ -142,7 +146,11 @@ def fit_joint_two_stage(spectra, settings):
             n=q[0]+q[1]*x*x+q[2]*x**4
             k=np.exp(np.clip(q[3]+q[4]*(x-1),-30,2))
             d=q[5+j] if count else nominal[j]
-            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            # Keep the optimizer objective defined for inadmissible trial dispersions.
+            # Penalize the violation rather than silently accepting clipped optics.
+            violation=np.maximum(1e-6-n,0.)
+            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            out.extend(1000.*violation)
             if s.R is not None:out.extend((R-s.R)/s.sigma_R)
             if s.T is not None:out.extend((T-s.T)/s.sigma_T)
         if penalty:out.extend([.001*q[2],.001*q[4]])
