@@ -11,6 +11,8 @@ from phase1_fresnel import phase1_fit
 from optical_inversion_package.inversion import Spectrum,coherent_film
 app=Flask(__name__,static_folder='web',static_url_path='')
 app.config['MAX_CONTENT_LENGTH']=2_000_000
+from multilayer_api import multilayer_api
+app.register_blueprint(multilayer_api)
 DATA=ROOT/'data'/'R6G_Singh.csv'
 
 def reference():
