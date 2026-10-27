@@ -237,9 +237,12 @@ def joint_fit_api():
             raise ValueError('Thickness tolerance must be between 0 and 0.5')
         if optimizer not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):
             raise ValueError('Unknown optimizer')
+        n_min=float(request.form.get('n_min',0.05)); n_max=float(request.form.get('n_max',8.0)); k_max=float(request.form.get('k_max',6.0))
+        if not (np.isfinite(n_min) and np.isfinite(n_max) and np.isfinite(k_max) and 0<n_min<n_max<=30 and 0<k_max<=30):
+            raise ValueError('Require finite bounds 0 < n_min < n_max <= 30 and 0 < k_max <= 30')
         settings=FitSettings(n_basis=basis,max_nfev=budget,smoothness=smooth,
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
-            thickness_tolerance=tolerance)
+            thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max)
         method=request.form.get('joint_method','two_stage')
         if method not in ('two_stage','direct','lorentz','drude_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         if len(spectra)==1 and method not in ('cauchy','sellmeier'):
