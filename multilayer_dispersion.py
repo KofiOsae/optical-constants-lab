@@ -113,12 +113,50 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                                 max_nfev=max_nfev,x_scale='jac')
         fits.append(candidate)
     result=min(fits,key=lambda fit: float(np.dot(fit.fun,fit.fun)))
+    # Diagnose competing minima without consulting any reference optical constants.
+    # Compare distinct solutions at measured wavelengths, not raw coefficients.
+    probe=np.linspace(lowwl,highwl,51)
+    ranked=sorted(enumerate(fits),key=lambda item:float(item[1].cost))
+    branches=[]
+    for start_index,fit in ranked:
+        ni,ki=nk(probe,fit.x)
+        signature=np.r_[ni,ki]
+        if not np.all(np.isfinite(signature)):
+            continue
+        distinct=True
+        for branch in branches:
+            if float(np.sqrt(np.mean((signature-branch['_signature'])**2)))<0.05:
+                distinct=False
+                branch['start_indices'].append(int(start_index))
+                break
+        if distinct:
+            branches.append({'start_indices':[int(start_index)],
+                             'cost':float(fit.cost),
+                             'converged':bool(fit.success),
+                             'n_probe':np.asarray(ni).tolist(),
+                             'k_probe':np.asarray(ki).tolist(),
+                             '_signature':signature})
+    best_cost=float(result.cost)
+    branch_report=[{key:value for key,value in branch.items() if key!='_signature'}
+                   | {'relative_cost_increase':float((branch['cost']-best_cost)/max(best_cost,1e-12))}
+                   for branch in branches]
+    near_equal=sum(b['relative_cost_increase']<=0.05 for b in branch_report)
+    ambiguity={'status':'competing_solutions' if near_equal>1 else 'not_established',
+               'distinct_branches':len(branch_report),
+               'near_optimal_branches':near_equal,
+               'probe_wavelength_nm':probe.tolist(),
+               'branches':branch_report,
+               'note':('Branches differ by >=0.05 RMS in n,k on the probe grid; '
+                       'near-optimal means objective cost within 5% of best. '
+                       'A single branch does not prove uniqueness; incomplete optimization '
+                       'or insufficient multistart coverage can conceal alternatives.')}
     def optical_constants(w):
         return nk(np.asarray(w,float),result.x)
     return {'result':result,'optical_constants':optical_constants,
             'thicknesses':result.x[disp_count:] if fit_thickness else nom,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
+            'ambiguity':ambiguity,
             'multistart':{'attempts':len(fits),'costs':[float(f.cost) for f in fits], 'selected_start':int(np.argmin([f.cost for f in fits]))},
             'optical_bounds':{'n_min':nlo,'n_max':nhi,'k_min':klo,'k_max':khi} if model=='spline' else None,
             'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
