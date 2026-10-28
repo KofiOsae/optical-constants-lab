@@ -33,3 +33,24 @@ def test_joint_lorentz_known_answer():
     out=fit_dispersive_stacks(samples,model='lorentz',oscillators=1,max_nfev=250)
     assert out['result'].success
     assert out['weighted_rmse']<.03
+
+
+def test_multilayer_branch_diagnostic_is_reference_independent():
+    """Branch diagnostics must use fitted spectra only, with no reference n,k."""
+    w=np.linspace(500.,800.,21)
+    n=np.full_like(w,1.8)
+    k=np.full_like(w,.08)
+    r,t=coherent_stack(w,[(n+1j*k,120.)],1.5)
+    sample=StackSpectrum(w,r,t,(),(),1.5)
+    out=fit_dispersive_stacks([(sample,120.)],model='spline',
+                              n_basis=4,max_nfev=70,
+                              optical_bounds=(.01,8.,0.,10.))
+    report=out['ambiguity']
+    assert report['distinct_branches']>=1
+    assert report['near_optimal_branches']>=1
+    assert report['status'] in ('competing_solutions','not_established')
+    assert len(report['probe_wavelength_nm'])==51
+    assert all(len(b['n_probe'])==51 and len(b['k_probe'])==51
+               for b in report['branches'])
+    assert all(b['relative_cost_increase']>=-1e-8 for b in report['branches'])
+    assert 'reference' not in out
