@@ -13,9 +13,9 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
                           thickness_bounds=None, max_nfev=250):
     if not samples: raise ValueError('At least one sample is required')
-    if model not in ('spline','lorentz','drude_lorentz'):
+    if model not in ('spline','lorentz','drude_lorentz','kk_constrained'):
         raise ValueError('Unsupported dispersion model')
-    if model!='spline' and not 1<=oscillators<=3:
+    if model!='spline' and not 1<=oscillators<=8:
         raise ValueError('Choose 1 to 3 oscillators')
     wl=np.concatenate([np.asarray(s.wavelength_nm,float) for s,d in samples])
     if np.any(~np.isfinite(wl)) or np.any(wl<=0):raise ValueError('Invalid wavelengths')
@@ -32,6 +32,23 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         def nk(w,p,b=None):
             basis=b if b is not None else spline_design(w,lowwl,highwl,n_basis)
             return basis@p[:n_basis],basis@p[n_basis:2*n_basis]
+    elif model=='kk_constrained':
+        # Fixed positive Lorentz spectral basis: analytic, passive, KK-consistent.
+        # Resonances span beyond measured band to mitigate truncation artifacts.
+        elo,ehi=1239.841984/highwl,1239.841984/lowwl
+        centers=np.geomspace(max(.02,elo*.35),ehi*2.5,oscillators)
+        widths=np.maximum(.08*centers,.03)
+        x=np.r_[2.5,np.full(oscillators,.25)]
+        lo=np.r_[1.,np.zeros(oscillators)]
+        hi=np.r_[25.,np.full(oscillators,30.)]
+        B=[None]*len(samples)
+        def nk(w,p,b=None):
+            E=1239.841984/np.asarray(w,float)
+            eps=np.full(E.shape,p[0],complex)
+            for strength,center,width in zip(p[1:1+oscillators],centers,widths):
+                eps+=strength*center**2/(center**2-E**2-1j*width*E)
+            z=np.sqrt(eps+0j)
+            return z.real,np.maximum(z.imag,0.)
     else:
         elo,ehi=1239.841984/highwl,1239.841984/lowwl
         x=[2.5];lo=[1.];hi=[25.]
@@ -78,4 +95,5 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             'thicknesses':result.x[disp_count:] if fit_thickness else nom,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
-            'model':model,'dispersion_parameters':result.x[:disp_count].tolist()}
+            'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
+            'model_note':('Passive analytic fixed-pole Lorentz basis; KK consistency follows from the model, not from finite-band numerical integration. Basis is restrictive and must be tested for adequacy.' if model=='kk_constrained' else '')}
