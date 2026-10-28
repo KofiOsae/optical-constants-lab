@@ -115,6 +115,10 @@ def health():return jsonify({'status':'ok','service':'optical-constants-lab','ve
 @app.get('/')
 def home():return send_from_directory(ROOT/'web','workspace.html')
 
+@app.get('/multilayer.html')
+def multilayer_page():
+    return send_from_directory(ROOT/'web','multilayer.html')
+
 @app.get('/legacy')
 def legacy():return send_from_directory(ROOT/'web','index.html')
 
