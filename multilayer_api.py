@@ -3,6 +3,7 @@ import json
 import numpy as np
 from flask import Blueprint, request, jsonify
 from custom_spectra import parse_spectrum
+from material_import import inspect_material
 from multilayer_inverse import StackSpectrum, predict_stack
 from multilayer_dispersion import fit_dispersive_stacks
 from kk_sskk import kk_finite_band, sskk_finite_band
@@ -30,6 +31,27 @@ def parse_layers(layers,w):
             value=complex(float(item['n']),float(item.get('k',0.)))
         result.append((value,d))
     return tuple(result)
+
+@multilayer_api.post('/api/multilayer/preview')
+def multilayer_preview():
+    try:
+        upload=request.files.get('spectrum')
+        if upload is None:
+            raise ValueError('Upload a measured R/T spectrum')
+        data=inspect_material(upload.filename,upload.read(),
+            request.form.get('wavelength_unit','auto'),
+            request.form.get('signal_unit','auto'))
+        columns=data['columns']
+        if 'R' not in columns or 'T' not in columns:
+            raise ValueError('Both R and T are required')
+        if data['point_count']<8:
+            raise ValueError('At least 8 wavelength points required')
+        return jsonify({'wavelength_nm':data['wavelength_nm'],
+            'R':columns['R'],'T':columns['T'],
+            'point_count':data['point_count'],
+            'wavelength_range_nm':data['wavelength_range_nm']})
+    except (ValueError,TypeError,KeyError) as exc:
+        return jsonify({'error':str(exc)}),400
 
 @multilayer_api.post('/api/multilayer/joint-fit')
 def multilayer_joint_fit():
