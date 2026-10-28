@@ -114,3 +114,59 @@ def multilayer_joint_fit():
             'limitations':'Coherent isotropic layers; one unknown material; semi-infinite lossless substrate. No incoherent backside reflections.'})
     except (ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
         return jsonify({'error':str(exc)}),400
+
+@multilayer_api.post('/api/multilayer/forward-validation')
+def multilayer_forward_validation():
+    """Independent reference-RI forward prediction against uploaded R/T."""
+    try:
+        spectrum=request.files.get('spectrum')
+        reference=request.files.get('reference')
+        if spectrum is None or reference is None:
+            raise ValueError('Upload both R/T spectrum and reference n,k CSV')
+        cfg=json.loads(request.form.get('configuration','{}'))
+        d=float(cfg['thickness_nm'])
+        if not np.isfinite(d) or d<=0:raise ValueError('Thickness must be positive')
+        spec=parse_spectrum(spectrum.filename,spectrum.read(),d,cfg.get('substrate_n',1.5),
+                            cfg.get('wavelength_unit','auto'),cfg.get('signal_unit','auto'))
+        import io,csv
+        raw=reference.read().decode('utf-8-sig')
+        reader=csv.DictReader(io.StringIO(raw),delimiter=';' if ';' in raw.splitlines()[0] else ',')
+        if not reader.fieldnames:raise ValueError('Reference CSV has no header')
+        names={h.strip().lower():h for h in reader.fieldnames}
+        wkey=names.get('wavelength_nm') or names.get('wavelength_um')
+        if not wkey or 'n' not in names or 'k' not in names:
+            raise ValueError('Reference requires wavelength_nm or wavelength_um, n, k')
+        rows=list(reader)
+        if len(rows)<2:raise ValueError('Reference needs at least two rows')
+        rw=np.array([float(row[wkey]) for row in rows])
+        if wkey==names.get('wavelength_um'):rw*=1000
+        rn=np.array([float(row[names['n']]) for row in rows])
+        rk=np.array([float(row[names['k']]) for row in rows])
+        if not np.all(np.isfinite(rw)) or not np.all(np.isfinite(rn)) or not np.all(np.isfinite(rk)) or np.any(np.diff(rw)<=0) or np.any(rn<=0) or np.any(rk<0):
+            raise ValueError('Reference wavelength must increase strictly; n>0, k>=0 and all values finite')
+        w=np.asarray(spec.wavelength_nm,float)
+        if w.min()<rw.min()-1e-7 or w.max()>rw.max()+1e-7:
+            raise ValueError('Reference RI must cover the full measured wavelength interval; extrapolation is disabled')
+        ni=np.interp(w,rw,rn);ki=np.interp(w,rw,rk)
+        sample=StackSpectrum(w,spec.R,spec.T,
+            before=parse_layers(cfg.get('before',[]),w),
+            after=parse_layers(cfg.get('after',[]),w),
+            substrate_n=float(cfg.get('substrate_n',1.5)),
+            ambient_n=float(cfg.get('ambient_n',1.)),
+            angle_deg=float(cfg.get('angle_deg',0.)),
+            polarization=str(cfg.get('polarization','s')).lower())
+        r,t=predict_stack(sample,ni,ki,d)
+        def metric(obs,pred):
+            return None if obs is None else float(np.sqrt(np.mean((np.asarray(obs)-pred)**2)))
+        errors=[(r-spec.R)] if spec.R is not None else []
+        if spec.T is not None:errors.append(t-spec.T)
+        return jsonify({'wavelength_nm':w.tolist(),'R_predicted':r.tolist(),'T_predicted':t.tolist(),
+            'R_measured':None if spec.R is None else spec.R.tolist(),
+            'T_measured':None if spec.T is None else spec.T.tolist(),
+            'R_residual':None if spec.R is None else (r-spec.R).tolist(),
+            'T_residual':None if spec.T is None else (t-spec.T).tolist(),
+            'rmse_R':metric(spec.R,r),'rmse_T':metric(spec.T,t),
+            'rmse_combined':float(np.sqrt(np.mean(np.concatenate(errors)**2))),
+            'note':'No fitting. Reference interpolated only within measured range; coherent semi-infinite-substrate model.'})
+    except (ValueError,TypeError,KeyError,IndexError,UnicodeError) as exc:
+        return jsonify({'error':str(exc)}),400
