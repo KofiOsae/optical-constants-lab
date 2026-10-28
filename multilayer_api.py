@@ -110,6 +110,7 @@ def multilayer_joint_fit():
             'dispersion_parameters':out['dispersion_parameters'],
             'optical_bounds':out.get('optical_bounds'),
             'multistart':out.get('multistart'),
+            'ambiguity':out.get('ambiguity'),
             'model_note':out.get('model_note',''),
             'limitations':'Coherent isotropic layers; one unknown material; semi-infinite lossless substrate. No incoherent backside reflections.'})
     except (ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
