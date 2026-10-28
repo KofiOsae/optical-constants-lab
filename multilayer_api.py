@@ -68,6 +68,7 @@ def multilayer_joint_fit():
             smoothness=float(request.form.get('smoothness',.01)),
             oscillators=int(request.form.get('oscillators',1)),
             fit_thickness=fit_thickness,thickness_bounds=bounds,
+            optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))))
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
@@ -107,6 +108,8 @@ def multilayer_joint_fit():
             'dispersion_diagnostic':diagnostic,
             'sensitivity':out['sensitivity'],
             'dispersion_parameters':out['dispersion_parameters'],
+            'optical_bounds':out.get('optical_bounds'),
+            'multistart':out.get('multistart'),
             'model_note':out.get('model_note',''),
             'limitations':'Coherent isotropic layers; one unknown material; semi-infinite lossless substrate. No incoherent backside reflections.'})
     except (ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
