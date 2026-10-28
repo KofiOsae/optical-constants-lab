@@ -11,7 +11,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained'):
         raise ValueError('Unsupported dispersion model')
@@ -23,12 +23,16 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
     if highwl<=lowwl:raise ValueError('Spectral range must be nonzero')
     nom=np.array([float(d) for s,d in samples])
     if np.any(nom<=0):raise ValueError('Positive thicknesses required')
+    if optical_bounds is None: optical_bounds=(.5,6.,0.,5.)
+    nlo,nhi,klo,khi=map(float,optical_bounds)
+    if not np.all(np.isfinite([nlo,nhi,klo,khi])) or not (0<nlo<nhi and 0<=klo<khi):
+        raise ValueError('Optical bounds require 0 < n_min < n_max and 0 <= k_min < k_max')
     if model=='spline':
         if n_basis<4:raise ValueError('Cubic spline needs at least 4 basis functions')
         B=[spline_design(s.wavelength_nm,lowwl,highwl,n_basis) for s,d in samples]
         x=np.r_[np.full(n_basis,1.8),np.full(n_basis,.02)]
-        lo=np.r_[np.full(n_basis,.5),np.zeros(n_basis)]
-        hi=np.r_[np.full(n_basis,6.),np.full(n_basis,5.)]
+        lo=np.r_[np.full(n_basis,nlo),np.full(n_basis,klo)]
+        hi=np.r_[np.full(n_basis,nhi),np.full(n_basis,khi)]
         def nk(w,p,b=None):
             basis=b if b is not None else spline_design(w,lowwl,highwl,n_basis)
             return basis@p[:n_basis],basis@p[n_basis:2*n_basis]
@@ -87,7 +91,8 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             chunks.extend([np.sqrt(smoothness)*np.diff(p[:n_basis],2),
                            np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)])
         return np.concatenate(chunks)
-    if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial thickness outside bounds')
+    if model=='spline': x=np.clip(x,lo+1e-8,hi-1e-8)
+    if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial parameters outside bounds')
     # Deterministic metal-aware multistart. The same objective and bounds are
     # used for every start; select by data+regularization residual norm.
     starts=[x]
@@ -96,7 +101,7 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             trial=x.copy()
             trial[:n_basis]=n_seed
             trial[n_basis:disp_count]=k_seed
-            starts.append(trial)
+            starts.append(np.clip(trial,lo+1e-8,hi-1e-8))
     elif model=='drude_lorentz':
         trial=x.copy()
         trial[1]=min(5.,hi[1]*.5)
@@ -115,5 +120,6 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
             'multistart':{'attempts':len(fits),'costs':[float(f.cost) for f in fits], 'selected_start':int(np.argmin([f.cost for f in fits]))},
+            'optical_bounds':{'n_min':nlo,'n_max':nhi,'k_min':klo,'k_max':khi} if model=='spline' else None,
             'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
             'model_note':('Passive analytic fixed-pole Lorentz basis; KK consistency follows from the model, not from finite-band numerical integration. Basis is restrictive and must be tested for adequacy.' if model=='kk_constrained' else '')}
