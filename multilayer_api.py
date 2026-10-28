@@ -44,6 +44,17 @@ def multilayer_joint_fit():
             d=float(c['thickness_nm'])
             spec=parse_spectrum(upload.filename,upload.read(),d,c.get('substrate_n',1.5),
                                 c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
+            limits=c.get('fit_range_nm')
+            if limits is not None:
+                lo,hi=map(float,limits)
+                if not np.isfinite(lo) or not np.isfinite(hi) or lo>=hi:
+                    raise ValueError('Invalid fitting wavelength range')
+                mask=(spec.wavelength_nm>=lo)&(spec.wavelength_nm<=hi)
+                if np.count_nonzero(mask)<8:
+                    raise ValueError('Fitting wavelength range must contain at least 8 measured points')
+                spec.wavelength_nm=spec.wavelength_nm[mask]
+                if spec.R is not None: spec.R=spec.R[mask]
+                if spec.T is not None: spec.T=spec.T[mask]
             angle=float(c.get('angle_deg',0.))
             pol=str(c.get('polarization','s')).lower()
             if not 0<=angle<85 or pol not in ('s','p'):
