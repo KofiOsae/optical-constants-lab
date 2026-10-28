@@ -107,6 +107,7 @@ def multilayer_joint_fit():
             'dispersion_diagnostic':diagnostic,
             'sensitivity':out['sensitivity'],
             'dispersion_parameters':out['dispersion_parameters'],
+            'model_note':out.get('model_note',''),
             'limitations':'Coherent isotropic layers; one unknown material; semi-infinite lossless substrate. No incoherent backside reflections.'})
     except (ValueError,TypeError,KeyError,IndexError,OverflowError) as exc:
         return jsonify({'error':str(exc)}),400
