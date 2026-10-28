@@ -88,12 +88,32 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                            np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)])
         return np.concatenate(chunks)
     if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial thickness outside bounds')
-    result=least_squares(residual,x,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
+    # Deterministic metal-aware multistart. The same objective and bounds are
+    # used for every start; select by data+regularization residual norm.
+    starts=[x]
+    if model=='spline':
+        for n_seed,k_seed in ((.5,2.),(1.,3.),(2.,2.5)):
+            trial=x.copy()
+            trial[:n_basis]=n_seed
+            trial[n_basis:disp_count]=k_seed
+            starts.append(trial)
+    elif model=='drude_lorentz':
+        trial=x.copy()
+        trial[1]=min(5.,hi[1]*.5)
+        trial[2]=.15
+        starts.append(trial)
+    fits=[]
+    for seed in starts:
+        candidate=least_squares(residual,seed,bounds=(lo,hi),
+                                max_nfev=max_nfev,x_scale='jac')
+        fits.append(candidate)
+    result=min(fits,key=lambda fit: float(np.dot(fit.fun,fit.fun)))
     def optical_constants(w):
         return nk(np.asarray(w,float),result.x)
     return {'result':result,'optical_constants':optical_constants,
             'thicknesses':result.x[disp_count:] if fit_thickness else nom,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
+            'multistart':{'attempts':len(fits),'costs':[float(f.cost) for f in fits], 'selected_start':int(np.argmin([f.cost for f in fits]))},
             'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
             'model_note':('Passive analytic fixed-pole Lorentz basis; KK consistency follows from the model, not from finite-band numerical integration. Basis is restrictive and must be tested for adequacy.' if model=='kk_constrained' else '')}
