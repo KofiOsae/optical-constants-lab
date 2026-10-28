@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify
 from custom_spectra import parse_spectrum
 from multilayer_inverse import StackSpectrum, predict_stack
 from multilayer_dispersion import fit_dispersive_stacks
+from kk_sskk import kk_finite_band, sskk_finite_band
 
 multilayer_api=Blueprint('multilayer_api',__name__)
 
@@ -71,6 +72,21 @@ def multilayer_joint_fit():
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
+        diagnostic=None
+        mode=request.form.get('dispersion_diagnostic','none')
+        if mode not in ('none','kk','sskk'):raise ValueError('Unsupported dispersion diagnostic')
+        if mode!='none':
+            eps1=n*n-k*k
+            eps2=2*n*k
+            if mode=='kk':
+                diagnostic=kk_finite_band(grid,eps2,epsilon_inf=float(request.form.get('epsilon_inf',1.)))
+            else:
+                aw=float(request.form['anchor_wavelength_nm'])
+                ae=float(request.form['anchor_epsilon1'])
+                diagnostic=sskk_finite_band(grid,eps2,aw,ae)
+            diagnostic['mode']=mode
+            diagnostic['epsilon1_fitted']=np.interp(diagnostic['wavelength_nm'],grid,eps1).tolist()
+            diagnostic['status']='finite_band_diagnostic_only'
         predictions=[]
         for i,(s,d) in enumerate(samples):
             ni,ki=out['optical_constants'](s.wavelength_nm)
@@ -88,6 +104,7 @@ def multilayer_joint_fit():
             'message':str(out['result'].message),'model':model,
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
             'weighted_rmse':out['weighted_rmse'],'predictions':predictions,
+            'dispersion_diagnostic':diagnostic,
             'sensitivity':out['sensitivity'],
             'dispersion_parameters':out['dispersion_parameters'],
             'limitations':'Coherent isotropic layers; one unknown material; semi-infinite lossless substrate. No incoherent backside reflections.'})
