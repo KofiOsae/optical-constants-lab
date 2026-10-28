@@ -53,3 +53,37 @@ Inspect (i) reflectance and transmittance residuals, (ii) optical-constant error
 
 ## 10. Verification versus validation
 **Verification** checks equations and code: zero-thickness and index-matched limits, R+T=1 for lossless films, convergence and independent solver agreement. **Synthetic validation** checks recovery against known n,k,d under noise. **Experimental validation** additionally requires calibrated measured R/T, independent film thickness, measured substrate constants, and an accounting of diffuse scattering and backside reflections. Passing synthetic tests does not establish experimental accuracy.
+
+
+## 11. Multilayer laboratory: selecting an inversion model (October 2026)
+The current multilayer workspace fits **one shared unknown isotropic material** across 1–12 measured R/T spectra with different known layers and optional thickness bounds. It uses coherent finite layers and a semi-infinite lossless substrate; do not interpret a fitted result as valid for incoherent substrate-backside reflections, diffuse scattering, graded layers, or anisotropy.
+
+### Available inverse models
+| Method | Use when | Assumptions and pitfalls |
+|---|---|---|
+| B-spline | Material identity or dispersion shape is unknown; exploratory reconstruction | Flexible but **not automatically causal**. Vary basis count and smoothness; check competing branches and sensitivity. |
+| Lorentz | Bound-electron resonances dominate | Passive oscillators, but resonance number and initial guesses matter. |
+| Drude–Lorentz | Free carriers plus interband/bound resonances may be present | Test multiple oscillator counts; a lower residual alone does not validate the recovered constants. |
+| KK-constrained fixed-pole Lorentz basis | You want a causal, passive basis with fixed pole locations | This implementation is a restricted oscillator basis, **not** a general model-free KK inversion; inadequate poles can bias recovery. |
+
+### Diagnostic-only options
+Finite-band **KK** and singly subtractive **SSKK** checks assess a reconstructed spectrum; they **do not constrain the optimizer**. Finite bandwidth can produce truncation errors. SSKK requires an independently justified anchor.
+
+### Other models and methods (not currently executable in the multilayer inverse)
+- **Cauchy:** transparent, weakly dispersive dielectrics over a limited wavelength band; not suitable across absorption features.
+- **Sellmeier:** transparent dielectrics away from resonances; do not extend a transparent-band fit through absorption.
+- **Swanepoel envelopes:** preliminary index/thickness estimates for transparent or weakly absorbing films with resolved transmission fringes and suitable substrate conditions.
+- **Drude-only:** free-carrier response when bound-electron terms can be neglected.
+- **Tauc–Lorentz:** some amorphous semiconductors with a meaningful optical band edge; needs appropriate causal implementation and bandgap constraints.
+
+### Practical decision workflow
+1. **Define the optical stack:** illumination side, order of layers, thickness estimates, known-layer n,k, substrate index, incidence angle, polarization and measurement units. An unknown layer is not automatically equivalent to a known reference material.
+2. **Inspect measured R/T:** check 0–1 fractions, spectral overlap, calibration, R+T, interference visibility, absorption and uncertainty. R+T<1 can arise from absorption or unmodeled scattering, so do not assume every loss is intrinsic k.
+3. **Start reference-independent:** fit a low-complexity B-spline when the material is unknown, and test Lorentz/Drude–Lorentz where physically plausible. Do **not** seed with a reference n,k spectrum in a blind-recovery experiment.
+4. **Use physically justified bounds:** n>0 and k>=0 for passive media, plus independent thickness limits. If parameters hit a bound, widen it only when supported by the physics; report bound sensitivity.
+5. **Compare candidates:** inspect R/T residual structure, fit convergence, distinct near-optimal optical-constant branches, Jacobian rank/conditioning, and model complexity. A low RMSE or one converged start is **not proof of uniqueness**.
+6. **Validate predictive power:** reserve independent spectra or configurations for held-out prediction when possible; perturb thickness, model complexity and starting points. A reference n,k file, if supplied, is used **only after fitting** for optional comparison, not for fitting.
+7. **Report limitations:** distinguish forward-model agreement, inverse reconstruction, identifiability and experimental validity. If branches compete, report ambiguity rather than a single definitive n,k.
+
+### ML-01 benchmark interpretation
+For air / Au (30 nm) / silica (n=1.46), 400–1000 nm, a separately uploaded Au reference produced forward-only combined R/T RMSE ~0.001972 against FMM-generated R/T. This verifies approximate forward-model agreement for that configuration, **not** a successful blind inversion. Continue ML-01 using measured R/T and independently specified geometry only. The reference is an evaluation benchmark and must not enter optimization.
