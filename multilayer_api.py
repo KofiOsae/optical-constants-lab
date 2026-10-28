@@ -81,7 +81,9 @@ def multilayer_joint_fit():
             predictions.append({'sample':i,'thickness_nm':float(out['thicknesses'][i]),
                 'rmse':float(np.sqrt(np.mean(np.square(errors)))),
                 'wavelength_nm':s.wavelength_nm.tolist(),
-                'R_fit':r.tolist(),'T_fit':t.tolist()})
+                'R_fit':r.tolist(),'T_fit':t.tolist(),
+                'R_measured':s.R.tolist() if s.R is not None else None,
+                'T_measured':s.T.tolist() if s.T is not None else None})
         return jsonify({'success':bool(out['result'].success),
             'message':str(out['result'].message),'model':model,
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
