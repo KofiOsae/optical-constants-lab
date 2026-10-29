@@ -1,0 +1,19 @@
+Optical Constants Laboratory
+Research and Independent Non-Commercial Use License
+Copyright (c) 2026 Optical Constants Laboratory contributors.
+
+Permission is granted, without a license fee, to use and study the Optical Constants Laboratory and to modify its original source code for personal, educational, academic, and independent non-commercial research purposes, subject to the conditions below.
+
+1. Commercial use requires a separate written agreement with the copyright holder(s). This includes using the software or its original code in paid services, consulting deliverables, proprietary commercial products, commercial software-as-a-service, or resale. Contact the repository maintainers to discuss commercial permission before such use.
+
+2. You may share unmodified or modified copies solely for the permitted non-commercial purposes, provided that this copyright notice, these terms, and a clear indication of modifications are retained. You may not sublicense this project under different terms.
+
+3. Scholarly publications and research outputs produced using the Laboratory are permitted without a commercial software license. Scientific citation of the software and relevant methods and datasets is appreciated. Research sponsored by a commercial organization, or research that forms part of a commercial service, should be discussed with the copyright holder(s) before using the software.
+
+4. These terms apply only to original Optical Constants Laboratory code and documentation that the copyright holder(s) have the right to license. Third-party libraries, numerical algorithms implemented from published literature, example datasets, optical-constant tables, trademarks, and other third-party materials retain their respective licenses, attribution obligations, and rights. This license does not override them.
+
+5. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. The authors and contributors are not liable for damages arising from use of the software. Scientific results must be validated independently for their intended application.
+
+This is a custom non-commercial source-available license; it is NOT an OSI-approved open-source license. For commercial licensing, permission requests, or clarification of the authorized copyright holders, contact the maintainers of https://github.com/KofiOsae/optical-constants-lab.
+
+Effective for materials released under these terms from the date this license was added; it does not retroactively change rights already granted in a separate agreement.
