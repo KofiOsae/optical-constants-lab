@@ -12,3 +12,8 @@ Upload CSV/TSV/TXT/JSON through **Custom experimental spectra**. Use columns `wa
 ## v0.3.8: General spectral import preview
 
 The Custom experimental spectra panel now previews uploaded wavelength-indexed n/k, R/T, ellipsometry Ψ/Δ, absorbance, absorptance, and dielectric-function tables without requiring the optional R6G example. The `/api/import-preview` endpoint validates files locally on the app server and returns detected columns, converted wavelengths, and data for plotting. It does not perform inversion for n/k or ellipsometry; the existing R/T inverse solver remains unchanged. Ambiguous wavelength units must be explicitly selected. R6G can be loaded on demand via a separate button, and its failure does not block uploaded data.
+
+
+## Copyright, research use and commercial permission
+
+Copyright © 2026 Optical Constants Laboratory contributors. The original Laboratory source code and documentation are made available at no license fee for personal, educational, academic and independent **non-commercial** research, under the conditions in [LICENSE](LICENSE). Commercial use (including paid services and proprietary integrations) requires separate written permission from the relevant copyright holder(s), requested through the repository maintainers. Third-party dependencies and material data retain their own licensing terms. This is a custom source-available non-commercial license, not an OSI-approved open-source license.
