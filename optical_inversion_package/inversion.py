@@ -20,13 +20,18 @@ class Spectrum:
     sigma_R: float = .005
     sigma_T: float = .005
     name: str = 'spectrum'
+    roughness_nm: float = 0.
 
 
 def coherent_film(wavelength_nm, n_film, thickness_nm, substrate_n=1.,
-                  ambient_n=1., angle_deg=0., polarization='s'):
+                  ambient_n=1., angle_deg=0., polarization='s', roughness_nm=0.):
     """Power R,T for coherent uniform film on semi-infinite substrate.
     For lossless ambient/substrate; absorbing external media not supported.
     """
+    if not np.isfinite(roughness_nm) or roughness_nm<0:raise ValueError('Roughness mixing thickness must be nonnegative')
+    if roughness_nm>0:
+        from multilayer_forward import coherent_stack
+        return coherent_stack(wavelength_nm,[(n_film,thickness_nm)],substrate_n,ambient_n,angle_deg,polarization,roughness_nm=[roughness_nm,roughness_nm])
     wl = np.asarray(wavelength_nm, dtype=float)
     nf = np.asarray(n_film, dtype=complex)
     n0 = complex(ambient_n)
