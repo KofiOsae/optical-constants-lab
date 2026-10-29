@@ -2,7 +2,7 @@
 import json
 import numpy as np
 from flask import Blueprint, request, jsonify
-from custom_spectra import parse_spectrum
+from custom_spectra import parse_spectrum, apply_rt_noise
 from material_import import inspect_material
 from multilayer_inverse import StackSpectrum, predict_stack
 from multilayer_dispersion import fit_dispersive_stacks
@@ -61,7 +61,9 @@ def multilayer_joint_fit():
         if not 1<=len(uploads)<=12 or not isinstance(configs,list) or len(configs)!=len(uploads):
             raise ValueError('Supply 1–12 spectra and matching stack configurations')
         samples=[]
-        for upload,c in zip(uploads,configs):
+        sigma=float(request.form.get('noise_sigma','0') or '0')
+        seed=int(request.form.get('noise_seed','2026') or '2026')
+        for i,(upload,c) in enumerate(zip(uploads,configs)):
             if not isinstance(c,dict):raise ValueError('Invalid configuration')
             d=float(c['thickness_nm'])
             spec=parse_spectrum(upload.filename,upload.read(),d,c.get('substrate_n',1.5),
@@ -77,6 +79,7 @@ def multilayer_joint_fit():
                 spec.wavelength_nm=spec.wavelength_nm[mask]
                 if spec.R is not None: spec.R=spec.R[mask]
                 if spec.T is not None: spec.T=spec.T[mask]
+            spec=apply_rt_noise(spec,sigma,seed,i)
             angle=float(c.get('angle_deg',0.))
             pol=str(c.get('polarization','s')).lower()
             if not 0<=angle<85 or pol not in ('s','p'):
@@ -157,6 +160,8 @@ def multilayer_joint_fit():
         return jsonify({'success':bool(out['result'].success),
             'message':str(out['result'].message),'model':model,
             'fit_thickness':bool(fit_thickness),
+            'noise':{'sigma':sigma,'seed':seed,'applied':sigma>0,
+                     'clipped_to_physical_range':sigma>0},
             'warm_start_used':bool(out['warm_start_used']),
             'warm_start_package':{'model':model,'n_basis':basis,
                 'oscillators':oscillator_count,'wavelength_range_nm':[fit_low,fit_high],
