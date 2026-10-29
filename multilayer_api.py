@@ -134,7 +134,8 @@ def multilayer_joint_fit():
             fit_thickness=fit_thickness,thickness_bounds=bounds,
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
-            initial_parameters=initial,initial_reference=expanded_warm)
+            initial_parameters=initial,initial_reference=expanded_warm,
+            parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None)
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
