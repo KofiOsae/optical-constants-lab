@@ -87,3 +87,37 @@ Finite-band **KK** and singly subtractive **SSKK** checks assess a reconstructed
 
 ### ML-01 benchmark interpretation
 For air / Au (30 nm) / silica (n=1.46), 400–1000 nm, a separately uploaded Au reference produced forward-only combined R/T RMSE ~0.001972 against FMM-generated R/T. This verifies approximate forward-model agreement for that configuration, **not** a successful blind inversion. Continue ML-01 using measured R/T and independently specified geometry only. The reference is an evaluation benchmark and must not enter optimization.
+
+
+## Organic dyes: expanded causal oscillator models (development branch)
+The planned additional models use a common causal complex dielectric response and the same
+R/T forward geometry as Lorentz fitting. The existing **model dropdown** is the intended
+point of access; no additional reconstruction workspace is required.
+
+* **Modified Lorentz** uses a nonnegative combination of narrow and broad Lorentz
+  responses at one center energy. Set strength, center, base damping, and broad fraction.
+* **KK-consistent Gaussian broadening** averages passive damped oscillators over a
+  distribution of resonance energies. Set strength, center and Gaussian sigma;
+  homogeneous damping is small and prescribed in this experimental definition.
+* **Voigt-type broadening** averages homogeneous Lorentz poles over a Gaussian
+  energy distribution. Set strength, center, Lorentz gamma and Gaussian sigma.
+* **Vibronic multiplet** uses a finite Huang–Rhys distribution of molecular transition
+  sidebands. Set strength, origin energy, vibronic spacing, homogeneous damping, and S.
+
+The dielectric convention is N = sqrt(epsilon) = n + i k with exp(-i omega t), and
+positive oscillator strengths, energies and widths. Do not fit an arbitrary Gaussian
+to k independently of n. Avoid assuming the number of fitted peaks establishes
+a unique microscopic transition assignment.
+
+**Worked synthetic protocol.** Construct a 450–950 nm reference spectrum for a 150 nm
+film on a known n=1.5 substrate using one Voigt-like oscillator with
+epsilon_inf=2.5, strength=0.8, center=2.3 eV, gamma=0.12 eV and
+sigma=0.15 eV. Simulate R and T through the existing coherent forward solver.
+Fit the generated data at fixed thickness and compare n, k, R, T and parameter
+recovery, including 470–600 nm residuals; then perturb with a recorded noise seed
+and repeat for a second thickness. Compare with 1–4 Lorentz oscillators and
+held-out spectra. Values are **illustrative**, not published dye properties.
+
+**Release caution:** This tutorial paragraph documents the science and intended
+controls; it must not be interpreted as proof that the current development
+branch has full UI/model-export coverage. Consult the release checklist.
