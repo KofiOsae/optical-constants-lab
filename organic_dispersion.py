@@ -98,3 +98,30 @@ def organic_nk(wavelength_nm, parameters, model, oscillators=1):
     eps = organic_dielectric(wavelength_nm, parameters, model, oscillators)
     N = np.sqrt(eps + 0j)
     return N.real, N.imag
+
+def organic_parameter_setup(model, oscillators, low_wavelength_nm, high_wavelength_nm):
+    """Defaults and physically admissible bounds shared by all inverse fitters."""
+    if model not in MODEL_PARAMETER_COUNTS or not 1 <= oscillators <= 8:
+        raise ValueError("Unsupported organic model or oscillator count")
+    elo=HC_EV_NM/high_wavelength_nm
+    ehi=HC_EV_NM/low_wavelength_nm
+    starts=[2.5]; lower=[1.]; upper=[25.]
+    for energy in np.linspace(elo,ehi,oscillators+2)[1:-1]:
+        if model=="modified_lorentz":
+            values=[.3,float(energy),.20,.35]
+            lb=[0.,.05,.001,0.]
+            ub=[20.,max(10.,2*ehi),5.,1.]
+        elif model=="kk_gaussian":
+            values=[.3,float(energy),.15]
+            lb=[0.,.05,.001]
+            ub=[20.,max(10.,2*ehi),5.]
+        elif model=="voigt":
+            values=[.3,float(energy),.08,.12]
+            lb=[0.,.05,.001,0.]
+            ub=[20.,max(10.,2*ehi),5.,5.]
+        else:
+            values=[.3,float(energy),.17,.12,1.]
+            lb=[0.,.05,.001,.001,0.]
+            ub=[20.,max(10.,2*ehi),2.,5.,5.]
+        starts.extend(values);lower.extend(lb);upper.extend(ub)
+    return np.array(starts,float),np.array(lower,float),np.array(upper,float)
