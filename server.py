@@ -303,7 +303,7 @@ def joint_fit_api():
 
         if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic'):
             from scientific_diagnostics import fit_causal
-            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None))
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None))
         elif method in ('cauchy','sellmeier'):
             from dispersion_models import fit_transparent_spectra
             outcome=fit_transparent_spectra(training,method,budget,settings.fit_thickness)
