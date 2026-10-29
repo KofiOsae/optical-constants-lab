@@ -309,7 +309,7 @@ def joint_fit_api():
                     arr=np.asarray(values,dtype='<f8')
                     fingerprint.update(str(arr.shape).encode('ascii'))
                     fingerprint.update(arr.tobytes())
-            fingerprint.update(np.asarray([spec.thickness_nm,spec.substrate_n,spec.ambient_n,spec.angle_deg,spec.sigma_R,spec.sigma_T],dtype='<f8').tobytes())
+            fingerprint.update(np.asarray([spec.thickness_nm,np.real(spec.substrate_n),np.imag(spec.substrate_n),np.real(spec.ambient_n),spec.angle_deg,spec.sigma_R,spec.sigma_T,spec.roughness_nm,spec.substrate_thickness_nm or 0.,spec.backing_n],dtype='<f8').tobytes())
             fingerprint.update(str(spec.polarization).encode('utf-8'))
         training_fingerprint=fingerprint.hexdigest()
 
