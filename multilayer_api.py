@@ -138,7 +138,9 @@ def multilayer_joint_fit():
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
             initial_parameters=initial,initial_reference=expanded_warm,
-            parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None)
+            parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None,
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',
+            interface_mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
@@ -160,6 +162,10 @@ def multilayer_joint_fit():
         predictions=[]
         for i,(s,d) in enumerate(samples):
             ni,ki=out['optical_constants'](s.wavelength_nm)
+            if out.get('fitted_interface_mixing_nm') is not None:
+                import dataclasses
+                count=len(s.before)+len(s.after)+2+(1 if s.substrate_thickness_nm is not None else 0)
+                s=dataclasses.replace(s,roughness_nm=(out['fitted_interface_mixing_nm'],)*count)
             r,t=predict_stack(s,ni,ki,out['thicknesses'][i])
             errors=[]
             if s.R is not None:errors.extend((r-s.R).tolist())
