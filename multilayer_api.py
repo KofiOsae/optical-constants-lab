@@ -190,7 +190,7 @@ def multilayer_joint_fit():
                 'oscillators':oscillator_count,'wavelength_range_nm':[fit_low,fit_high],
                 'dispersion_parameters':out['dispersion_parameters']},
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
-            'weighted_rmse':out['weighted_rmse'],'predictions':predictions,
+            'weighted_rmse':out['weighted_rmse'],'fitted_interface_mixing_nm':out.get('fitted_interface_mixing_nm'),'predictions':predictions,
             'dispersion_diagnostic':diagnostic,
             'sensitivity':out['sensitivity'],
             'dispersion_parameters':out['dispersion_parameters'],
