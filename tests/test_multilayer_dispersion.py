@@ -93,6 +93,7 @@ def test_independent_airy_blind_recovery_and_unseen_thickness():
     predicted_R,predicted_T=coherent_stack(w,[(recovered_n+1j*recovered_k,157.)],1.5)
     holdout_rmse=float(np.sqrt(np.mean(np.r_[(predicted_R-truth_R),
                                                (predicted_T-truth_T)]**2)))
+    print(f'Q01 independent Airy: n_RMSE={n_rmse:.7g}, k_RMSE={k_rmse:.7g}, heldout_RT_RMSE={holdout_rmse:.7g}, branches={fitted["ambiguity"]["distinct_branches"]}')
     assert fitted['result'].success, 'Solver did not converge'
     assert n_rmse<.06, f'Independent n error too large: {n_rmse}'
     assert k_rmse<.025, f'Independent k error too large: {k_rmse}'
@@ -120,6 +121,7 @@ def test_independent_lorentz_recovery_withheld_thickness():
     R_pred,T_pred=coherent_stack(w,[(recovered_n+1j*recovered_k,137.)],1.5)
     holdout_error=float(np.sqrt(np.mean(np.r_[(R_pred-R_unseen),(T_pred-T_unseen)]**2)))
     assert fitted['result'].success
+    print(f'Q02 independent Lorentz: n_RMSE={n_error:.7g}, k_RMSE={k_error:.7g}, heldout_RT_RMSE={holdout_error:.7g}')
     assert n_error<.06, f'Lorentz n RMSE {n_error}'
     assert k_error<.025, f'Lorentz k RMSE {k_error}'
     assert holdout_error<.012, f'Lorentz holdout RMSE {holdout_error}'
@@ -140,6 +142,7 @@ def test_thin_film_indistinguishable_branches_are_not_reported_unique():
     ambiguity=fit['ambiguity']
     # This test is intentionally an identifiability gate rather than a
     # goodness-of-fit gate; a numerically tiny RMSE must not imply unique n,k.
+    print(f'Q09 thin-film ambiguity: alt_RT_RMSE={diff:.7g}, distinct_branches={ambiguity["distinct_branches"]}, relative5pct_branches={ambiguity["near_optimal_branches"]}, noise_equivalent_branches={ambiguity["noise_equivalent_branches"]}')
     assert ambiguity['distinct_branches']>=2, ambiguity
     assert ambiguity['noise_equivalent_branches']>=2, ambiguity
     assert ambiguity['status']=='competing_solutions'
