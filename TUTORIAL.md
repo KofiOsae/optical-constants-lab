@@ -121,3 +121,18 @@ held-out spectra. Values are **illustrative**, not published dye properties.
 **Release caution:** This tutorial paragraph documents the science and intended
 controls; it must not be interpreted as proof that the current development
 branch has full UI/model-export coverage. Consult the release checklist.
+
+
+## Interpreting fit diagnostics and oscillator initialization
+
+The fit's **weighted RMSE** measures the normalized differences between modeled and measured reflectance/transmittance. It is not the same as an absolute R/T fraction or the optical-constant error. Inspect both per-film R/T RMSE and an independently uploaded reference n,k when available. A successful optimizer termination means a numerical stopping criterion was satisfied; it does **not** establish physical accuracy.
+
+For a residual vector r and fitted parameter vector p, the local Jacobian is J_ij = partial r_i / partial p_j. Singular-value decomposition yields singular values sigma_1 >= ... >= sigma_m. The reported **condition number** is kappa(J) = sigma_max / sigma_min, provided the smallest singular value is positive. A full-rank Jacobian means parameters are locally distinguishable in the linearized fit, but neither full rank nor a modest condition number proves global uniqueness. Condition numbers depend on parameter units, scaling, chosen wavelengths, noise weighting and model. There is no universal numerical pass threshold. Weak directions may exhibit large parameter uncertainty even when the optical R/T fit appears good.
+
+**Worked comparison from synthetic two-film tests:** Lorentz produced kappa ~11.8; Voigt ~17.2; modified Lorentz ~88.3; refined KK-Gaussian ~57.0. These values describe the local parameter scaling of the specific tests, not a ranking of material models. An earlier broad KK-Gaussian fit had kappa ~364 and conspicuous narrow numerical peaks, requiring separate quadrature-convergence checks.
+
+**Choosing initial parameters:** epsilon_inf controls the long-wavelength dielectric baseline; oscillator strength controls amplitude; E0 sets the transition energy in eV (E = 1239.841984 / wavelength_nm); Lorentz gamma is homogeneous damping; Gaussian sigma is inhomogeneous energy-distribution width. The modified-Lorentz broad fraction mixes two linewidths, and the vibronic spacing and Huang–Rhys S control sideband positions and relative strengths. To demonstrate genuine recovery, rerun a known synthetic benchmark from deliberately perturbed initial guesses and physically meaningful bounds, not only from the known answer. A bound-clamped parameter, high correlation or strong dependence on initial guesses warrants a caution.
+
+**Recognizing systematic shifts:** Compare fitted and reference n,k at matching wavelengths; inspect signed residuals, mean offsets and wavelength dependence. Incorrect substrate refractive index can produce a convincing R/T fit with biased n,k: in the controlled two-film Lorentz test, using substrate n=1.46 instead of the true 1.50 produced nonzero reference errors even though optimization converged. Verify film thickness, incidence angle, polarization, spectral units and input R/T channel calibration before changing dispersion physics. The application may flag offsets but cannot infer their unique cause from residuals alone.
+
+**Interface roughness — planned, not yet available:** physical scattering roughness is not generally equivalent to a homogeneous effective-medium interfacial layer. Any future roughness control must specify whether it implements interfacial mixing, coherent reflection attenuation, or a scattering model, and its limits must be validated independently for single-film, joint-film and multilayer stacks. Keep roughness disabled for established baseline benchmarks.
