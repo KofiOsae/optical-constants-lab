@@ -236,6 +236,14 @@ def joint_fit_api():
                 raise ValueError('Each configuration must be an object')
             spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
                 c.get('substrate_n',1.5),c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
+            spec.substrate_n=complex(float(c.get('substrate_n',1.5)),float(c.get('substrate_k',0)))
+            if not np.isfinite(spec.substrate_n.real) or not np.isfinite(spec.substrate_n.imag) or spec.substrate_n.real<=0 or spec.substrate_n.imag<0:
+                raise ValueError('Substrate n must be positive and k nonnegative')
+            spec.substrate_thickness_nm=float(c['substrate_thickness_nm']) if c.get('substrate_thickness_nm') not in (None,'') else None
+            if spec.substrate_thickness_nm is not None and (not np.isfinite(spec.substrate_thickness_nm) or spec.substrate_thickness_nm<=0):
+                raise ValueError('Finite substrate thickness must be positive')
+            spec.backing_n=float(c.get('backing_n',1.))
+            if not np.isfinite(spec.backing_n) or spec.backing_n<=0:raise ValueError('Backing index must be positive')
             spec.angle_deg=float(c.get('angle_deg',0))
             spec.roughness_nm=float(c.get('roughness_nm',0))
             if not np.isfinite(spec.roughness_nm) or not 0<=spec.roughness_nm<=100:raise ValueError('Effective mixing thickness must be between 0 and 100 nm')
@@ -345,6 +353,12 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        s.substrate_n=complex(float(ns),float(request.form.get('substrate_k',0)))
+        if not np.isfinite(s.substrate_n.real) or not np.isfinite(s.substrate_n.imag) or s.substrate_n.real<=0 or s.substrate_n.imag<0:raise ValueError('Invalid complex substrate index')
+        s.substrate_thickness_nm=float(request.form['substrate_thickness_nm']) if request.form.get('substrate_thickness_nm') else None
+        if s.substrate_thickness_nm is not None and (not np.isfinite(s.substrate_thickness_nm) or s.substrate_thickness_nm<=0):raise ValueError('Finite substrate thickness must be positive')
+        s.backing_n=float(request.form.get('backing_n',1.))
+        if not np.isfinite(s.backing_n) or s.backing_n<=0:raise ValueError('Backing index must be positive')
         s.roughness_nm=float(request.form.get('roughness_nm',0))
         if not np.isfinite(s.roughness_nm) or not 0<=s.roughness_nm<=100:raise ValueError('Effective mixing layer must be within 0–100 nm')
         sigma,seed=noise_settings()
