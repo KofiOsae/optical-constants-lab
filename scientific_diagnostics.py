@@ -19,7 +19,7 @@ def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
         eps+=strength*center**2/(center**2-E**2-1j*width*E)
     return eps
 
-def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None):
+def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None,parameter_controls=None):
     if model not in ('lorentz','drude_lorentz',*MODEL_PARAMETER_COUNTS) or not 1<=oscillators<=8:
         raise ValueError('Choose 1–3 Lorentz oscillators, optionally with Drude term')
     allw=np.concatenate([s.wavelength_nm for s in spectra]);elo=1239.841984/max(allw);ehi=1239.841984/min(allw)
@@ -36,6 +36,19 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
     if fit_thickness:
         x.extend(nom);lo.extend(nom*.95);hi.extend(nom*1.05)
     x=np.array(x);lo=np.array(lo);hi=np.array(hi)
+    if parameter_controls is not None:
+        if not isinstance(parameter_controls,dict):
+            raise ValueError('Parameter controls must be an object')
+        count=len(x)-(len(spectra) if fit_thickness else 0)
+        for key,arr in [('initial',x),('lower',lo),('upper',hi)]:
+            if key in parameter_controls:
+                values=np.asarray(parameter_controls[key],float)
+                if values.shape!=(count,) or not np.all(np.isfinite(values)):
+                    raise ValueError(f'{key} requires {count} finite optical coefficients')
+                arr[:count]=values
+        if np.any(lo>=hi) or np.any(x<lo) or np.any(x>hi):
+            raise ValueError('Initial parameters must lie within strict bounds')
+
     def optical(w,p):
         N=np.sqrt(dielectric(w,p,model,oscillators)+0j)
         return np.real(N),np.maximum(np.imag(N),0.)
