@@ -40,7 +40,7 @@ def samples():
     return simulate_four(w[idx],n[idx],k[idx]),(w[idx],n[idx],k[idx])
 
 from benchmark_api import run_original_inverse
-from custom_spectra import parse_spectrum
+from custom_spectra import parse_spectrum, apply_rt_noise
 from material_import import inspect_material
 from analysis_methods import swanepoel, tauc
 from stack_models import stack_spectrum, ellipsometry
@@ -203,6 +203,14 @@ def compare_methods_api():
         return jsonify(compare_methods(spec,cfg,float(ns)))
     except (ValueError,TypeError,KeyError) as exc:return jsonify({'error':str(exc)}),400
 
+def noise_settings():
+    """Validated fractional, absolute Gaussian perturbation parameters."""
+    sigma=float(request.form.get('noise_sigma','0') or '0')
+    seed=int(request.form.get('noise_seed','2026') or '2026')
+    if not np.isfinite(sigma) or not 0<=sigma<=0.1 or not 0<=seed<=2147483647:
+        raise ValueError('Noise requires sigma 0..0.1 (R/T fraction) and a nonnegative integer seed')
+    return sigma,seed
+
 @app.post('/api/joint-fit')
 def joint_fit_api():
     """Fit 1-12 coherent-film spectra, with identifiability warnings for a single spectrum."""
@@ -213,7 +221,8 @@ def joint_fit_api():
         if not 1<=len(uploads)<=12 or not isinstance(configs,list) or len(configs)!=len(uploads):
             raise ValueError('Supply 1-12 spectra and matching configurations')
         spectra=[]
-        for upload,c in zip(uploads,configs):
+        sigma,seed=noise_settings()
+        for i,(upload,c) in enumerate(zip(uploads,configs)):
             if not isinstance(c,dict):
                 raise ValueError('Each configuration must be an object')
             spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
@@ -227,7 +236,7 @@ def joint_fit_api():
             if spec.polarization not in ('s','p'):
                 raise ValueError('Polarization must be s or p')
             spec.name=str(c.get('name',upload.filename or 'spectrum'))[:100]
-            spectra.append(spec)
+            spectra.append(apply_rt_noise(spec,sigma,seed,i))
         wavelength_min=float(request.form.get('wavelength_min_nm','0') or 0)
         wavelength_max=float(request.form.get('wavelength_max_nm','1e12') or 1e12)
         if not (np.isfinite(wavelength_min) and np.isfinite(wavelength_max) and 0<=wavelength_min<wavelength_max):
@@ -309,6 +318,7 @@ def joint_fit_api():
         diagnostics=jacobian_report(outcome['result'])
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
             predictions=predictions,weighted_rmse=outcome['weighted_rmse'],training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
+            noise={'sigma':sigma,'seed':seed,'applied':sigma>0,'clipped_to_physical_range':sigma>0},
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
             note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
@@ -324,6 +334,8 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        sigma,seed=noise_settings()
+        s=apply_rt_noise(s,sigma,seed)
         # Restrict the numerical inversion itself to the user-selected wavelengths.
         range_lo=request.form.get('wavelength_min_nm')
         range_hi=request.form.get('wavelength_max_nm')
