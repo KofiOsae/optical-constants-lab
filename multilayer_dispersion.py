@@ -94,6 +94,15 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             return np.r_[data,np.sqrt(smoothness)*np.diff(p[:n_basis],2),
                           np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)]
         return data
+    warm_start_used=False
+    if initial_parameters is not None:
+        p=np.asarray(initial_parameters,dtype=float)
+        if p.ndim!=1 or p.size!=disp_count or not np.all(np.isfinite(p)):
+            raise ValueError('Warm start requires a finite dispersion vector of matching length')
+        if np.any(p<lo[:disp_count]) or np.any(p>hi[:disp_count]):
+            raise ValueError('Warm start dispersion values outside parameter bounds')
+        x[:disp_count]=p
+        warm_start_used=True
     if model=='spline': x=np.clip(x,lo+1e-8,hi-1e-8)
     if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial parameters outside bounds')
     # Deterministic metal-aware multistart. The same objective and bounds are
@@ -174,6 +183,7 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
             'ambiguity':ambiguity,
+            'warm_start_used':warm_start_used,
             'multistart':{'attempts':len(fits),'costs':[float(f.cost) for f in fits], 'selected_start':int(np.argmin([f.cost for f in fits]))},
             'optical_bounds':{'n_min':nlo,'n_max':nhi,'k_min':klo,'k_max':khi} if model=='spline' else None,
             'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
