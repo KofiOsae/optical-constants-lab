@@ -166,6 +166,17 @@ def multilayer_joint_fit():
                 diagnostic=sskk_finite_band(grid,eps2,aw,ae)
             diagnostic['mode']=mode
             diagnostic['epsilon1_fitted']=np.interp(diagnostic['wavelength_nm'],grid,eps1).tolist()
+            diagnostic_fit=np.asarray(diagnostic['epsilon1_fitted'],float)
+            diagnostic_est=np.asarray(diagnostic['epsilon1_estimate'],float)
+            diagnostic_residual=diagnostic_fit-diagnostic_est
+            diagnostic_w=np.asarray(diagnostic['wavelength_nm'],float)
+            diagnostic['epsilon1_residual']=diagnostic_residual.tolist()
+            diagnostic['rmse_full']=float(np.sqrt(np.mean(diagnostic_residual**2)))
+            margin=.1*(diagnostic_w.max()-diagnostic_w.min())
+            interior=(diagnostic_w>=diagnostic_w.min()+margin)&(diagnostic_w<=diagnostic_w.max()-margin)
+            diagnostic['rmse_interior']=float(np.sqrt(np.mean(diagnostic_residual[interior]**2))) if np.any(interior) else None
+            diagnostic['interior_wavelength_nm']=[float(diagnostic_w.min()+margin),float(diagnostic_w.max()-margin)]
+
             diagnostic['status']='finite_band_diagnostic_only'
         predictions=[]
         for i,(s,d) in enumerate(samples):
