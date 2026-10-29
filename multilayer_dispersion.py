@@ -11,7 +11,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained'):
         raise ValueError('Unsupported dispersion model')
