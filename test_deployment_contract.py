@@ -123,3 +123,44 @@ def test_multilayer_api_warm_start_reuse_and_domain_guard():
     reject=run(invalid)
     assert reject.status_code==400
     assert 'domain' in reject.get_json()['error'].lower()
+
+def test_single_absorbing_film_joint_accepts_lorentz_and_direct():
+    import io,json
+    import numpy as np
+    from server import app
+    from optical_inversion_package.inversion import coherent_film
+    w=np.linspace(500.,850.,21)
+    n=1.8+0*w
+    k=.08+0*w
+    R,T=coherent_film(w,n+1j*k,135.,1.5)
+    payload=('wavelength_nm,R,T\n'+'\n'.join(f'{x:.6f},{r:.12f},{t:.12f}' for x,r,t in zip(w,R,T))).encode()
+    config=json.dumps([{'name':'absorbing','thickness_nm':135.,'substrate_n':1.5}])
+    for method in ('direct','lorentz'):
+        response=app.test_client().post('/api/joint-fit',data={
+            'spectra':(io.BytesIO(payload),'absorbing.csv'),
+            'configurations':config,'joint_method':method,
+            'basis':'4','oscillators':'1','max_nfev':'25',
+            'optimizer':'least_squares','causal_starts':'1'},
+            content_type='multipart/form-data')
+        assert response.status_code==200,(method,response.get_json())
+        obj=response.get_json()
+        assert len(obj['n'])>0 and len(obj['k'])>0
+        assert len(obj['predictions'])==1
+
+
+def test_joint_preview_and_tutorial_equations_are_browser_ready():
+    import re
+    page=(ROOT/'web'/'workspace.html').read_text()
+    assert "async function previewJointUploads()" in page
+    assert "/api/import-preview" in page
+    assert "if(fs.length===1&&!['cauchy','sellmeier']" not in page
+    equations=re.findall(r'<div class="equation">(.*?)</div>',page,re.S)
+    assert len(equations)>=4
+    assert all(('\\\\' not in expression) and ('\\[' in expression) and ('\\]' in expression) for expression in equations)
+
+
+def test_multilayer_all_model_warm_start_frontend_controls():
+    page=(ROOT/'web'/'multilayer.html').read_text()
+    assert 'const warmCache=new Map()' in page
+    assert "for(const id of ['model','basis','osc'])" in page
+    assert "warmCache.get(warmKeyFromControls())" in page
