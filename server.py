@@ -348,7 +348,7 @@ def joint_fit_api():
             noise={'sigma':sigma,'seed':seed,'applied':sigma>0,'clipped_to_physical_range':sigma>0},
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
-            note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
+            note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent films on passive semi-infinite or finite coherent substrates. Incoherent backside reflections are not modeled.'))
     except (ValueError,TypeError,KeyError,OverflowError) as exc:
         return jsonify({'error':str(exc)}),400
 
