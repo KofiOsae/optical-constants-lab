@@ -7,7 +7,7 @@ This is a minimal inversion forward kernel, not a coating-design interface.
 import numpy as np
 
 def coherent_stack(wavelength_nm, layers, substrate_n=1.5, ambient_n=1.,
-                   angle_deg=0., polarization='s'):
+                   angle_deg=0., polarization='s', roughness_nm=None):
     """Return power R,T for isotropic coherent finite layers.
 
     layers: sequence of (complex refractive index, thickness_nm).
@@ -33,6 +33,20 @@ def coherent_stack(wavelength_nm, layers, substrate_n=1.5, ambient_n=1.,
         if not np.isfinite(d) or d<0 or np.any(~np.isfinite(n)) or np.any(n.real<=0) or np.any(n.imag<0):
             raise ValueError('Finite layer needs passive index and nonnegative thickness')
         finite.append((n,float(d)))
+    if roughness_nm is not None:
+        sigma=np.asarray(roughness_nm,float)
+        if sigma.shape!=(len(finite)+1,) or np.any(~np.isfinite(sigma)) or np.any(sigma<0):
+            raise ValueError('One nonnegative interfacial mixing thickness required for each boundary')
+        if np.any(sigma>0):
+            indices=[n0]+[v for v,_ in finite]+[ns]
+            mixed=[]
+            for j,(index,thickness) in enumerate(finite):
+                if sigma[j]>0:
+                    mixed.append((np.sqrt(.5*(indices[j]**2+index**2)+0j),float(sigma[j])))
+                mixed.append((index,thickness))
+            if sigma[-1]>0:
+                mixed.append((np.sqrt(.5*(indices[-2]**2+ns**2)+0j),float(sigma[-1])))
+            finite=mixed
     n=[n0]+[v for v,_ in finite]+[ns]
     u=n0*np.sin(np.deg2rad(angle_deg))
     q=[np.sqrt(v*v-u*u+0j) for v in n]

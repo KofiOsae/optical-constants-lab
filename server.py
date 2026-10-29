@@ -237,6 +237,8 @@ def joint_fit_api():
             spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
                 c.get('substrate_n',1.5),c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
             spec.angle_deg=float(c.get('angle_deg',0))
+            spec.roughness_nm=float(c.get('roughness_nm',0))
+            if not np.isfinite(spec.roughness_nm) or not 0<=spec.roughness_nm<=100:raise ValueError('Effective mixing thickness must be between 0 and 100 nm')
             spec.polarization=str(c.get('polarization','s')).lower()
             spec.sigma_R=float(c.get('sigma_R',.005))
             spec.sigma_T=float(c.get('sigma_T',.005))
@@ -343,6 +345,8 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        s.roughness_nm=float(request.form.get('roughness_nm',0))
+        if not np.isfinite(s.roughness_nm) or not 0<=s.roughness_nm<=100:raise ValueError('Effective mixing layer must be within 0–100 nm')
         sigma,seed=noise_settings()
         s=apply_rt_noise(s,sigma,seed)
         # Restrict the numerical inversion itself to the user-selected wavelengths.

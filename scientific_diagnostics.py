@@ -56,7 +56,7 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
         out=[]
         for i,s in enumerate(spectra):
             n,k=optical(s.wavelength_nm,p);d=p[-len(spectra)+i] if fit_thickness else s.thickness_nm
-            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=getattr(s,'roughness_nm',0.))
             if s.R is not None:out.extend((R-s.R)/s.sigma_R)
             if s.T is not None:out.extend((T-s.T)/s.sigma_T)
         return np.array(out)

@@ -136,3 +136,17 @@ For a residual vector r and fitted parameter vector p, the local Jacobian is J_i
 **Recognizing systematic shifts:** Compare fitted and reference n,k at matching wavelengths; inspect signed residuals, mean offsets and wavelength dependence. Incorrect substrate refractive index can produce a convincing R/T fit with biased n,k: in the controlled two-film Lorentz test, using substrate n=1.46 instead of the true 1.50 produced nonzero reference errors even though optimization converged. Verify film thickness, incidence angle, polarization, spectral units and input R/T channel calibration before changing dispersion physics. The application may flag offsets but cannot infer their unique cause from residuals alone.
 
 **Interface roughness — planned, not yet available:** physical scattering roughness is not generally equivalent to a homogeneous effective-medium interfacial layer. Any future roughness control must specify whether it implements interfacial mixing, coherent reflection attenuation, or a scattering model, and its limits must be validated independently for single-film, joint-film and multilayer stacks. Keep roughness disabled for established baseline benchmarks.
+
+
+## Effective interface mixing (roughness approximation)
+
+The optional **interface mixing thickness** in nm models a thin, homogeneous, 50:50 mixture of the complex dielectric functions on each side of a boundary:
+
+    epsilon_mix(lambda) = [epsilon_left(lambda) + epsilon_right(lambda)]/2
+    N_mix(lambda) = sqrt(epsilon_mix(lambda))
+
+The inserted finite mixing layer is propagated using the same coherent transfer-matrix optics as the rest of the stack. This is a **phenomenological interdiffusion / index-grading approximation**, not a direct measurement of RMS surface-height roughness or diffuse scattering. In particular, it does not predict roughness-scattered power, lateral correlations, haze, or polarization conversion. A thickness value describes the effective layer added at an interface; it should not be identified automatically with an AFM-measured Sa or Sq value.
+
+**Single spectrum:** use the effective interface mixing field (nm); zero disables it. **Joint spectra:** a common interface mixing thickness is applied to each measured film. **Multilayer:** enter a comma-separated value for every boundary, in order from ambient through all finite layers to substrate. For a film with no additional known layers, enter two numbers, e.g. `2, 3`, for ambient/film and film/substrate; blank leaves all interfaces ideal. With one known layer above and one below, enter four values. The smooth-interface result must be unchanged when all values are zero.
+
+Start with 0 nm, then compare fixed 1–5 nm hypotheses under the same measured spectra and material assumptions. Look for lower held-out R/T errors as well as stable n,k and thicknesses. Effective interface mixing can correlate with bulk absorption and film thickness: a lower training RMSE alone does not establish real roughness. Avoid making broad scattering claims without angular or diffuse measurements.

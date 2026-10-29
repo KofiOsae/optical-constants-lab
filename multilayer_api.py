@@ -86,6 +86,7 @@ def multilayer_joint_fit():
                 raise ValueError('Angle or polarization invalid')
             w=spec.wavelength_nm
             sample=StackSpectrum(w,spec.R,spec.T,
+                roughness_nm=tuple(float(v) for v in c['interface_mixing_nm']) if c.get('interface_mixing_nm') is not None else None,
                 before=parse_layers(c.get('before',[]),w),
                 after=parse_layers(c.get('after',[]),w),
                 substrate_n=float(c.get('substrate_n',1.5)),
