@@ -170,3 +170,48 @@ def test_previous_fit_warm_start_and_reject_invalid_parameters():
         fit_dispersive_stacks([(sample,140.)],model='spline',
                               n_basis=4,max_nfev=10,
                               initial_parameters=[100.]*8)
+
+def test_progressive_fit_expand_high_wavelength_to_full_spectrum():
+    """Stage-one long-band optical fit transfers to a larger B-spline domain."""
+    w=np.linspace(500.,900.,41)
+    n=1.85+.04*(w-700.)/400.
+    k=.025+.005*np.exp(-((w-600.)/85.)**2)
+    r,t=coherent_stack(w,[(n+1j*k,180.)],1.5)
+    selection=w>=700
+    stage_sample=StackSpectrum(w[selection],r[selection],t[selection],(),(),1.5)
+    stage1=fit_dispersive_stacks([(stage_sample,180.)],model='spline',
+                                n_basis=4,max_nfev=70,optical_bounds=(1.,3.,0.,1.))
+    wn=stage_sample.wavelength_nm
+    n1,k1=stage1['optical_constants'](wn)
+    full_sample=StackSpectrum(w,r,t,(),(),1.5)
+    stage2=fit_dispersive_stacks([(full_sample,180.)],model='spline',
+                                n_basis=4,max_nfev=100,optical_bounds=(1.,3.,0.,1.),
+                                initial_reference={'wavelength_nm':wn.tolist(),
+                                                   'n':n1.tolist(),'k':k1.tolist()})
+    assert stage2['warm_start_used'] is True
+    assert stage2['warm_start_transferred'] is True
+    assert stage2['multistart']['attempts']>=4
+    nf,kf=stage2['optical_constants'](w)
+    rp,tp=coherent_stack(w,[(nf+1j*kf,180.)],1.5)
+    err=float(np.sqrt(np.mean(np.r_[rp-r,tp-t]**2)))
+    print('PROGRESSIVE_SPLINE full_band_RT_RMSE',err,
+          'stage1_success',stage1['result'].success,
+          'stage2_success',stage2['result'].success)
+    assert stage2['result'].success
+    assert err<.01
+
+
+def test_progressive_transfer_rejects_nonoverlap_or_nonphysical_reference():
+    import pytest
+    w=np.linspace(500.,800.,31)
+    n=np.full_like(w,1.9)
+    r,t=coherent_stack(w,[(n+.03j,160.)],1.5)
+    sample=StackSpectrum(w,r,t,(),(),1.5)
+    with pytest.raises(ValueError,match='overlap'):
+        fit_dispersive_stacks([(sample,160.)],model='spline',n_basis=4,max_nfev=10,
+                              initial_reference={'wavelength_nm':list(np.arange(900.,1000.,10.)),
+                                                 'n':[1.9]*10,'k':[.03]*10})
+    with pytest.raises(ValueError,match='valid increasing'):
+        fit_dispersive_stacks([(sample,160.)],model='spline',n_basis=4,max_nfev=10,
+                              initial_reference={'wavelength_nm':list(np.arange(500.,600.,10.)),
+                                                 'n':[1.9]*10,'k':[-.1]*10})
