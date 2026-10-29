@@ -64,7 +64,7 @@ def make_problem(spectra,settings):
             n=B@a; k=B@b
             violation_n=np.maximum(1e-6-n,0.)
             violation_k=np.maximum(-k,0.)
-            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*np.maximum(k,0.),di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*np.maximum(k,0.),di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=getattr(s,'roughness_nm',0.))
             out.extend(1000.*violation_n)
             out.extend(1000.*violation_k)
             if s.R is not None: out.extend((R-s.R)/s.sigma_R)
@@ -152,7 +152,7 @@ def fit_joint_two_stage(spectra, settings):
             # Keep the optimizer objective defined for inadmissible trial dispersions.
             # Penalize the violation rather than silently accepting clipped optics.
             violation=np.maximum(1e-6-n,0.)
-            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization)
+            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=getattr(s,'roughness_nm',0.))
             out.extend(1000.*violation)
             if s.R is not None:out.extend((R-s.R)/s.sigma_R)
             if s.T is not None:out.extend((T-s.T)/s.sigma_T)
@@ -205,7 +205,7 @@ def simulate_four(wavelength_nm,n,k):
     return specs
 
 def compare_prediction(spectrum,n,k,thickness=None):
-    R,T=coherent_film(spectrum.wavelength_nm,np.asarray(n)+1j*np.asarray(k),spectrum.thickness_nm if thickness is None else thickness,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
+    R,T=coherent_film(spectrum.wavelength_nm,np.asarray(n)+1j*np.asarray(k),spectrum.thickness_nm if thickness is None else thickness,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization,roughness_nm=getattr(spectrum,'roughness_nm',0.))
     diffs=np.concatenate([R-spectrum.R if spectrum.R is not None else np.array([]),T-spectrum.T if spectrum.T is not None else np.array([])])
     return {'R':R,'T':T,'rmse':float(np.sqrt(np.mean(diffs**2)))}
 
@@ -258,7 +258,7 @@ def estimate_broadband_seed(spectrum, n_seed, k_seed, nodes=25, max_nfev=55):
     def objective(q):
         n=np.maximum(CubicSpline(kn,q[:nodes],bc_type='natural')(w),1e-6)
         k=np.exp(np.clip(CubicSpline(kn,q[nodes:],bc_type='natural')(w),-24,2))
-        R,T=coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
+        R,T=coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization,roughness_nm=getattr(spectrum,'roughness_nm',0.))
         return np.r_[T-spectrum.T,R-spectrum.R,.012*np.diff(q[:nodes],2),.003*np.diff(q[nodes:],2)]
     sol=least_squares(objective,np.clip(q0,lo+1e-8,hi-1e-8),bounds=(lo,hi),max_nfev=max_nfev,ftol=1e-6,xtol=1e-6,gtol=1e-6)
     n=np.maximum(CubicSpline(kn,sol.x[:nodes],bc_type='natural')(w),1e-6)
@@ -297,7 +297,7 @@ def fit_historical_logk(spectrum, max_nfev=90, nodes=25, n_seed=None, k_seed=Non
     holdout=~train
     def predict(q):
         n,k=values(q,w)
-        return coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization)
+        return coherent_film(w,n+1j*k,spectrum.thickness_nm,spectrum.substrate_n,spectrum.ambient_n,spectrum.angle_deg,spectrum.polarization,roughness_nm=getattr(spectrum,'roughness_nm',0.))
     def residual(q):
         R,T=predict(q)
         return np.r_[(T-spectrum.T)[train],(R-spectrum.R)[train],.009*np.diff(q[:nodes],2),.0015*np.diff(q[nodes:],2)]
