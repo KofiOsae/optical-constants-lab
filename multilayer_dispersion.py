@@ -11,7 +11,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained'):
         raise ValueError('Unsupported dispersion model')
@@ -103,6 +103,41 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             raise ValueError('Warm start dispersion values outside parameter bounds')
         x[:disp_count]=p
         warm_start_used=True
+    transferred_from_reference=False
+    if initial_reference is not None:
+        if initial_parameters is not None:
+            raise ValueError('Specify either exact warm parameters or spectral warm transfer')
+        source_w=np.asarray(initial_reference.get('wavelength_nm',[]),dtype=float)
+        source_n=np.asarray(initial_reference.get('n',[]),dtype=float)
+        source_k=np.asarray(initial_reference.get('k',[]),dtype=float)
+        if (source_w.ndim!=1 or len(source_w)<8 or source_w.shape!=source_n.shape
+            or source_w.shape!=source_k.shape or not np.all(np.isfinite(source_w))
+            or not np.all(np.isfinite(source_n)) or not np.all(np.isfinite(source_k))
+            or np.any(np.diff(source_w)<=0) or np.any(source_n<=0) or np.any(source_k<0)):
+            raise ValueError('Spectral warm start requires valid increasing wavelengths, n and k')
+        overlap=(source_w>=lowwl)&(source_w<=highwl)
+        if np.count_nonzero(overlap)<8:
+            raise ValueError('Stage 1 and Stage 2 must overlap by at least eight wavelengths')
+        # Match the previous fitted optical curve on the overlapping window.
+        # Tiny Tikhonov damping towards the cold initializer stabilizes
+        # unconstrained spline coefficients outside that observed window.
+        target_w=source_w[overlap]
+        target_n=source_n[overlap]
+        target_k=source_k[overlap]
+        x0=np.asarray(x[:disp_count],float).copy()
+        span=np.maximum(np.asarray(hi[:disp_count])-np.asarray(lo[:disp_count]),1e-6)
+        def transfer_error(candidate):
+            n_try,k_try=nk(target_w,candidate)
+            return np.r_[(n_try-target_n),(k_try-target_k),
+                         0.002*(candidate-x0)/span]
+        transferred=least_squares(transfer_error,
+            np.clip(x0,lo[:disp_count]+1e-8,hi[:disp_count]-1e-8),
+            bounds=(lo[:disp_count],hi[:disp_count]),max_nfev=110)
+        if not np.all(np.isfinite(transferred.x)):
+            raise ValueError('Cannot transfer previous fitted n,k to expanded wavelength interval')
+        x[:disp_count]=transferred.x
+        transferred_from_reference=True
+        warm_start_used=True
     if model=='spline': x=np.clip(x,lo+1e-8,hi-1e-8)
     if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial parameters outside bounds')
     # Deterministic metal-aware multistart. The same objective and bounds are
@@ -184,6 +219,7 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             'sensitivity':jacobian_report(result),
             'ambiguity':ambiguity,
             'warm_start_used':warm_start_used,
+            'warm_start_transferred':transferred_from_reference,
             'multistart':{'attempts':len(fits),'costs':[float(f.cost) for f in fits], 'selected_start':int(np.argmin([f.cost for f in fits]))},
             'optical_bounds':{'n_min':nlo,'n_max':nhi,'k_min':klo,'k_max':khi} if model=='spline' else None,
             'model':model,'dispersion_parameters':result.x[:disp_count].tolist(),
