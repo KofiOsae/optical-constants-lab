@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use Optical Constants Laboratory in research, please cite this software release."
+title: "Optical Constants Laboratory"
+type: software
+authors:
+  - name: "Optical Constants Laboratory contributors"
+repository-code: "https://github.com/KofiOsae/optical-constants-lab"
+url: "https://optical-constants-lab.onrender.com"
+version: "1.0.0"
+date-released: "2026-10-29"
+abstract: "Browser-based optical constant inversion from reflectance and transmittance, including single, joint, and multilayer workflows, dispersion models, and finite-band KK/SSKK diagnostics."
+keywords:
+  - optical constants
+  - reflectance
+  - transmittance
+  - inverse optics
+  - thin films
+  - Kramers-Kronig
