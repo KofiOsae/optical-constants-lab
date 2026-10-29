@@ -179,3 +179,62 @@ For measured samples, select a flat, optically polished, chemically compatible s
 **Broad KK-Gaussian fix:** the Gaussian–Lorentz convolution now uses the analytic complex error function (Faddeeva) instead of 24-point fixed Gauss–Hermite quadrature. The broad Gaussian energy distribution is integrated over the full signed center-energy axis; because the susceptibility depends on the squared center energy, its negative-energy tail is passive but represents a different modeling convention than a truncated positive-only distribution. For the physically typical `E_0 >> sigma` regime, this tail is negligible. The analytic result has been checked against independent adaptive integration for broad-band cases and retains passive absorption. Narrow prior synthetic references generated with fixed quadrature may show small finite integration differences and should not be treated as identical down to machine precision after this correction.
 
 **For Au–R6G on glass:** represent gold as a known **finite absorbing layer** whose wavelength-dependent complex n,k have been independently determined and properly interpolated. Keep the substrate/backing geometry consistent with the experiment. Treat R6G as the unknown dispersive layer; interface mixing may be specified or fitted if justified, but must be judged against baseline fits and held-out spectra. Do not substitute an opaque Au semi-infinite substrate for a finite Au film unless the actual geometry supports that assumption.
+
+
+## Guided optical inversion decision flow (use before selecting a model)
+
+```text
+START: What R/T data and sample geometry do you have?
+ |
+ +-- Only one unknown film, same known substrate? ---> Single spectrum
+ |     +-- Two+ thicknesses of same material? -------> Joint spectrum (preferred)
+ |
+ +-- Known layers above/below unknown film? --------> Multilayer
+ |
+ +-- Is substrate optically known over all wavelengths?
+       +-- NO: measure blank substrate or obtain n,k first; do not trust extracted film n,k
+       +-- YES: is the substrate absorbing?
+              +-- YES: supply complex n,k (prefer spectral CSV in multilayer)
+              +-- NO: supply transparent substrate n (verify dispersion)
+       +-- Does backside reflection enter your detector?
+              +-- YES, coherent plate: finite coherent substrate thickness + backing index
+              +-- YES, incoherent thick plate: current model not appropriate
+              +-- NO: semi-infinite substrate approximation
+ |
+ V
+CHOOSE DISPERSION FAMILY
+ |
+ +-- Optical transparency with smooth n and k~0? ---> Cauchy/Sellmeier (validate k~0)
+ +-- Isolated electronic resonances? -------------> Lorentz
+ +-- Free-carrier/metal-like response? -----------> Drude-Lorentz
+ +-- Organic dye, broad molecular band? ---------> Voigt or KK-Gaussian
+ +-- Organic vibronic progression evident? ------> Vibronic
+ +-- Unknown line shape? ------------------------> B-spline exploratory baseline
+ |
+ V
+FIT with fixed film thickness, zero added noise, zero interface mixing
+ |
+ +-- Systematic residuals? Change physical model or oscillator count one at a time
+ +-- Different plausible fits? Add independent thickness/spectra; inspect condition/rank
+ +-- Surface/interface grading evidence? Compare fixed 0 nm vs bounded fitted mixing
+ |
+ V
+VALIDATE R/T, recovered n,k against independent reference and held-out data
+ |
+ +-- Need finite-band KK cross-check?
+       +-- Ordinary KK: background epsilon_inf from independent physical model
+       +-- SSKK: independent epsilon1 anchor at measured wavelength
+       +-- Plot residual epsilon1_fit - epsilon1_integral and interior RMSE
+ |
+ V
+REPORT: geometry, optical substrate data, uncertainty, model, fit residuals,
+        KK/SSKK finite-band limitations, and independent validation status
+```
+
+### Worked example: two simulated R6G films
+
+Upload 500 nm and 1000 nm reflectance/transmittance spectra; use the exact incident medium (air), the actual simulation substrate index, 0 nm interfacial mixing, fixed thicknesses, and no extra known layers. Begin with two KK-Gaussian oscillators, then compare Voigt and vibronic models based on spectral residuals. Do not fit roughness merely because a nonzero value improves RMSE. In the Multilayer workspace, after fitting enable KK or SSKK diagnostics; SSKK needs an independently known `epsilon1=n²-k²` at its anchor wavelength. Examine the dielectric residual graph and report full-band and 10–90% interior RMSE. Neither finite-band diagnostic alone proves full-spectrum causality.
+
+### Workspace operations
+
+The Multilayer workspace supports **bulk spectra selection** that creates or populates sample entries (filenames containing a thickness such as `500nm` propose nominal thickness), sample collapse/expand, separately scrollable columns with adjustable widths, and portable JSON project export/import including uploaded CSV contents, layer configuration and latest results. Project files may contain proprietary spectra; handle them accordingly. After reloading a project, review all experimental geometry and numerical settings before refitting. Browsers require the user to explicitly select a saved project for import; files are not automatically uploaded to an external account.
