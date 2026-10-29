@@ -146,3 +146,27 @@ def test_thin_film_indistinguishable_branches_are_not_reported_unique():
     assert ambiguity['distinct_branches']>=2, ambiguity
     assert ambiguity['noise_equivalent_branches']>=2, ambiguity
     assert ambiguity['status']=='competing_solutions'
+
+def test_previous_fit_warm_start_and_reject_invalid_parameters():
+    import pytest
+    w=np.linspace(490.,790.,31)
+    n=1.92+0.025*(w-640.)/300.
+    k=.035+0*w
+    r,t=coherent_stack(w,[(n+1j*k,140.)],1.5)
+    sample=StackSpectrum(w,r,t,(),(),1.5)
+    base=fit_dispersive_stacks([(sample,140.)],model='spline',
+                               n_basis=4,max_nfev=75)
+    reuse=fit_dispersive_stacks([(sample,140.)],model='spline',
+                                n_basis=4,max_nfev=75,
+                                initial_parameters=base['dispersion_parameters'])
+    assert reuse['warm_start_used'] is True
+    assert reuse['multistart']['attempts']>=4
+    assert reuse['weighted_rmse']<=base['weighted_rmse']+1.e-5
+    assert not base['warm_start_used']
+    with pytest.raises(ValueError,match='matching length'):
+        fit_dispersive_stacks([(sample,140.)],model='spline',
+                              n_basis=4,max_nfev=10,initial_parameters=[1.,2.])
+    with pytest.raises(ValueError,match='outside parameter bounds'):
+        fit_dispersive_stacks([(sample,140.)],model='spline',
+                              n_basis=4,max_nfev=10,
+                              initial_parameters=[100.]*8)
