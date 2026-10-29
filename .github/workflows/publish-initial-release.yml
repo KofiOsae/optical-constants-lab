@@ -1,0 +1,48 @@
+name: Publish initial v1.0.0 release
+on:
+  push:
+    paths:
+      - .github/workflows/publish-initial-release.yml
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish immutable-target release, if not already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view v1.0.0 >/dev/null 2>&1; then
+            echo "v1.0.0 already exists; no changes made."
+            exit 0
+          fi
+          cat > release-notes.md <<'RELEASE_NOTES'
+          # Optical Constants Laboratory v1.0.0
+          
+          Initial public research release, based on validated live application commit `57441470f272025b020e36bfd4d29b24f897ba73`.
+          
+          ## Included
+          - Single-spectrum, multi-spectrum joint, and multilayer R/T optical-constant inversion workflows.
+          - Dispersion options including B-splines, Lorentz/Drude–Lorentz, Voigt, vibronic and KK-consistent Gaussian models.
+          - Optical-stack modeling with passive complex-index substrates, optional finite **coherent** substrates, and effective interface mixing layers.
+          - Reference n,k comparison, fit diagnostics, finite-band KK/SSKK dielectric comparison and residual metrics.
+          - Progressive wavelength fitting, batch spectral loading, collapsible cards, adjustable/independently scrollable columns, and portable project save/load including fitted results.
+          - Integrated guided modeling tutorial and laboratory software citation.
+          
+          ## Scientific and validation limitations
+          - Optical interface mixing is an effective EMA interlayer, not a direct RMS roughness or diffuse-scattering measurement.
+          - Thick incoherent-substrate backside optics are not modeled.
+          - KK/SSKK finite-band diagnostics do not prove full-spectrum causality or unique parameter recovery.
+          - Automated regression checks passed, and user acceptance testing confirmed save/load, batch assignment, layout and KK/SSKK displays.
+          - Final independent optical reconstruction regression acceptance test remained formally **not verified** at release time.
+          
+          ## Reproducibility
+          Website: https://optical-constants-lab.onrender.com
+          Source: https://github.com/KofiOsae/optical-constants-lab
+          Release target commit: `57441470f272025b020e36bfd4d29b24f897ba73`.
+          Please cite the software URL, version tag and exact commit with the date accessed. No DOI is claimed.
+          RELEASE_NOTES
+          gh release create v1.0.0 --target 57441470f272025b020e36bfd4d29b24f897ba73 --title "Optical Constants Laboratory v1.0.0" --notes-file release-notes.md --latest
