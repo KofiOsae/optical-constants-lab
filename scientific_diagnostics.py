@@ -59,7 +59,7 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
         lo=np.r_[lo,bounds[0]]
         hi=np.r_[hi,bounds[1]]
     def optical(w,p):
-        N=np.sqrt(dielectric(w,p,model,oscillators)+0j)
+        N=np.sqrt(dielectric(w,p[:dispersion_count],model,oscillators)+0j)
         return np.real(N),np.maximum(np.imag(N),0.)
     def residual(p):
         out=[]
