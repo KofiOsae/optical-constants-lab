@@ -105,6 +105,18 @@ def multilayer_joint_fit():
         fit_high=max(float(s.wavelength_nm.max()) for s,d in samples)
         basis=int(request.form.get('n_basis',8))
         oscillator_count=int(request.form.get('oscillators',1))
+        expanded_warm=None
+        expanded_raw=request.form.get('warm_start_spectrum','').strip()
+        if expanded_raw:
+            expanded_warm=json.loads(expanded_raw)
+            if not isinstance(expanded_warm,dict):
+                raise ValueError('Stage-one warm transfer must contain a fitted optical spectrum')
+            if expanded_warm.get('source')!='previous_multilayer_fit':
+                raise ValueError('Expanded warm transfer must originate from a previous multilayer fit')
+            if expanded_warm.get('model')!=model:
+                raise ValueError('Stage-one and expanded fit must use the same model')
+        if warm_raw and expanded_warm is not None:
+            raise ValueError('Choose an exact warm start or an expanded spectrum transfer, not both')
         if warm_raw:
             warm=json.loads(warm_raw)
             if not isinstance(warm,dict) or warm.get('model')!=model:
@@ -122,7 +134,7 @@ def multilayer_joint_fit():
             fit_thickness=fit_thickness,thickness_bounds=bounds,
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
-            initial_parameters=initial)
+            initial_parameters=initial,initial_reference=expanded_warm)
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
@@ -163,6 +175,7 @@ def multilayer_joint_fit():
             'noise':{'sigma':sigma,'seed':seed,'applied':sigma>0,
                      'clipped_to_physical_range':sigma>0},
             'warm_start_used':bool(out['warm_start_used']),
+            'warm_start_transferred':bool(out['warm_start_transferred']),
             'warm_start_package':{'model':model,'n_basis':basis,
                 'oscillators':oscillator_count,'wavelength_range_nm':[fit_low,fit_high],
                 'dispersion_parameters':out['dispersion_parameters']},
