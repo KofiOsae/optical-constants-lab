@@ -129,6 +129,9 @@ def multilayer_joint_fit():
             if s.R is not None:errors.extend((r-s.R).tolist())
             if s.T is not None:errors.extend((t-s.T).tolist())
             predictions.append({'sample':i,'thickness_nm':float(out['thicknesses'][i]),
+                'nominal_thickness_nm':float(d),
+                'thickness_fitted':bool(fit_thickness),
+                'thickness_bounds_nm':list(map(float,configs[i]['thickness_bounds_nm'])) if fit_thickness else None,
                 'rmse':float(np.sqrt(np.mean(np.square(errors)))),
                 'wavelength_nm':s.wavelength_nm.tolist(),
                 'R_fit':r.tolist(),'T_fit':t.tolist(),
@@ -136,6 +139,7 @@ def multilayer_joint_fit():
                 'T_measured':s.T.tolist() if s.T is not None else None})
         return jsonify({'success':bool(out['result'].success),
             'message':str(out['result'].message),'model':model,
+            'fit_thickness':bool(fit_thickness),
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
             'weighted_rmse':out['weighted_rmse'],'predictions':predictions,
             'dispersion_diagnostic':diagnostic,
