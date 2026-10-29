@@ -95,3 +95,31 @@ def test_multilayer_api_distinguishes_fixed_and_fitted_thickness():
         else:
             assert p['thickness_nm']==100.
             assert p['thickness_bounds_nm'] is None
+
+def test_multilayer_api_warm_start_reuse_and_domain_guard():
+    import io, json
+    import numpy as np
+    from server import app
+    from multilayer_forward import coherent_stack
+    w=np.linspace(510.,800.,21)
+    R,T=coherent_stack(w,[(1.85+.04j,120.)],1.5)
+    payload=('wavelength_nm,R,T\n'+'\n'.join(f'{x:.6f},{r:.12f},{t:.12f}' for x,r,t in zip(w,R,T))).encode()
+    config=json.dumps([{'thickness_nm':120.,'substrate_n':1.5}])
+    client=app.test_client()
+    def run(warm=None):
+        data={'spectra':(io.BytesIO(payload),'sample.csv'),
+              'configurations':config,'model':'spline',
+              'n_basis':'4','max_nfev':'35'}
+        if warm is not None:data['warm_start']=json.dumps(warm)
+        return client.post('/api/multilayer/joint-fit',data=data,
+                           content_type='multipart/form-data')
+    first=run()
+    assert first.status_code==200,first.get_json()
+    saved=first.get_json()['warm_start_package']
+    second=run(saved)
+    assert second.status_code==200,second.get_json()
+    assert second.get_json()['warm_start_used'] is True
+    invalid={**saved,'wavelength_range_nm':[500.,800.]}
+    reject=run(invalid)
+    assert reject.status_code==400
+    assert 'domain' in reject.get_json()['error'].lower()
