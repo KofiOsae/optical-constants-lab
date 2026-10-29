@@ -32,6 +32,14 @@ def parse_layers(layers,w):
         result.append((value,d))
     return tuple(result)
 
+def substrate_index(configuration,w):
+    table=configuration.get('substrate_ri')
+    if table is None:
+        return complex(float(configuration.get('substrate_n',1.5)),float(configuration.get('substrate_k',0)))
+    if not isinstance(table,dict):
+        raise ValueError('Substrate RI table must be an object')
+    return parse_layers([dict(table,thickness_nm=0.)],w)[0][0]
+
 @multilayer_api.post('/api/multilayer/preview')
 def multilayer_preview():
     try:
@@ -89,7 +97,7 @@ def multilayer_joint_fit():
                 roughness_nm=tuple(float(v) for v in c['interface_mixing_nm']) if c.get('interface_mixing_nm') is not None else None,
                 before=parse_layers(c.get('before',[]),w),
                 after=parse_layers(c.get('after',[]),w),
-                substrate_n=complex(float(c.get('substrate_n',1.5)),float(c.get('substrate_k',0))),
+                substrate_n=substrate_index(c,w),
                 substrate_thickness_nm=float(c['substrate_thickness_nm']) if c.get('substrate_thickness_nm') not in (None,'') else None,
                 backing_n=float(c.get('backing_n',1.)),
                 ambient_n=float(c.get('ambient_n',1.)),
@@ -238,7 +246,7 @@ def multilayer_forward_validation():
         sample=StackSpectrum(w,spec.R,spec.T,
             before=parse_layers(cfg.get('before',[]),w),
             after=parse_layers(cfg.get('after',[]),w),
-            substrate_n=complex(float(cfg.get('substrate_n',1.5)),float(cfg.get('substrate_k',0))),
+            substrate_n=substrate_index(cfg,w),
             substrate_thickness_nm=float(cfg['substrate_thickness_nm']) if cfg.get('substrate_thickness_nm') not in (None,'') else None,
             backing_n=float(cfg.get('backing_n',1.)),
             ambient_n=float(cfg.get('ambient_n',1.)),
