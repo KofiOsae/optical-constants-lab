@@ -205,7 +205,7 @@ def compare_methods_api():
 
 @app.post('/api/joint-fit')
 def joint_fit_api():
-    """Fit 1-12 thin-film spectra; one-film fits require a transparent dispersion model."""
+    """Fit 1-12 coherent-film spectra, with identifiability warnings for a single spectrum."""
     try:
         import json
         uploads=request.files.getlist('spectra')
@@ -262,8 +262,8 @@ def joint_fit_api():
             thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max)
         method=request.form.get('joint_method','two_stage')
         if method not in ('two_stage','direct','lorentz','drude_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
-        if len(spectra)==1 and method not in ('cauchy','sellmeier'):
-            raise ValueError('Single-film fitting currently supports Cauchy or Sellmeier only')
+        # A single spectrum may be absorbing and can use any supported model.
+        # Low-dimensional data may not uniquely identify n, k, and thickness.
         holdout=int(request.form.get('holdout_index','-1'))
         if holdout < -1 or holdout >= len(spectra): raise ValueError('Invalid holdout index')
         if holdout >= 0 and len(spectra)<3: raise ValueError('Holdout validation needs at least 3 films')
@@ -311,7 +311,7 @@ def joint_fit_api():
             predictions=predictions,weighted_rmse=outcome['weighted_rmse'],training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
-            note='Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
+            note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
     except (ValueError,TypeError,KeyError,OverflowError) as exc:
         return jsonify({'error':str(exc)}),400
 
