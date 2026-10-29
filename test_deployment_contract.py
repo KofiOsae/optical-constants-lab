@@ -64,3 +64,34 @@ def test_multilayer_preview_requires_declared_wavelength_unit_and_two_channels()
         'spectrum':(io.BytesIO(incomplete.encode()),'sample.csv')},
         content_type='multipart/form-data')
     assert response.status_code==400
+
+def test_multilayer_api_distinguishes_fixed_and_fitted_thickness():
+    import io, json
+    import numpy as np
+    from server import app
+    from multilayer_forward import coherent_stack
+    w=np.linspace(500.,750.,21)
+    reflect,transmit=coherent_stack(w,[(1.8+.05j,100.)],1.5)
+    rows=['wavelength_nm,R,T']+[f'{x:.8f},{r:.12f},{t:.12f}' for x,r,t in zip(w,reflect,transmit)]
+    raw='\n'.join(rows).encode()
+    cfg={'thickness_nm':100.,'thickness_bounds_nm':[90.,110.],
+         'substrate_n':1.5}
+    for enabled in (False,True):
+        response=app.test_client().post('/api/multilayer/joint-fit',data={
+            'spectra':(io.BytesIO(raw),'fixed.csv'),
+            'configurations':json.dumps([cfg]),
+            'model':'lorentz','oscillators':'1','max_nfev':'10',
+            'fit_thickness':'true' if enabled else 'false'},
+            content_type='multipart/form-data')
+        assert response.status_code==200,response.get_json()
+        body=response.get_json()
+        p=body['predictions'][0]
+        assert body['fit_thickness'] is enabled
+        assert p['thickness_fitted'] is enabled
+        assert p['nominal_thickness_nm']==100.
+        if enabled:
+            assert p['thickness_bounds_nm']==[90.,110.]
+            assert 90.<=p['thickness_nm']<=110.
+        else:
+            assert p['thickness_nm']==100.
+            assert p['thickness_bounds_nm'] is None
