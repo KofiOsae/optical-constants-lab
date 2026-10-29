@@ -15,7 +15,7 @@ def test_browser_javascript_syntax():
     import re, subprocess, tempfile
     for name in ('workspace.html','multilayer.html'):
         html=(ROOT/'web'/name).read_text(encoding='utf8')
-        inline=re.findall(r'<script(?:\\s[^>]*)?>(.*?)</script>',html,flags=re.S|re.I)
+        inline=re.findall(r'<script(?:\s[^>]*)?>(.*?)</script>',html,flags=re.S|re.I)
         for script in inline:
             if not script.strip():
                 continue
