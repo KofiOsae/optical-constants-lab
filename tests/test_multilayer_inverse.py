@@ -27,3 +27,19 @@ def test_unknown_thickness_recovery():
     assert abs(fit['n']-n)<1e-4
     assert abs(fit['k']-k)<1e-4
     assert abs(fit['thickness_nm']-d)<.01
+
+def test_three_finite_layers_unknown_middle_thickness_and_index():
+    """Known A / unknown B / known C with simultaneous n,k,thickness recovery."""
+    wl=np.linspace(460.,900.,89)
+    known_before=((1.75,90.),)
+    known_after=((2.05,70.),)
+    n,k,d=2.35,.11,145.
+    rr,tt=coherent_stack(wl,[*known_before,(n+1j*k,d),*known_after],1.52)
+    spec=StackSpectrum(wl,rr,tt,known_before,known_after,1.52)
+    out=fit_constant_unknown(spec,142.,n0=2.3,k0=.08,
+                             fit_thickness=True,thickness_bounds=(130.,160.))
+    print('THREE_LAYER_INVERSION',out['n'],out['k'],out['thickness_nm'],out['weighted_rmse'])
+    assert out['result'].success
+    assert abs(out['n']-n)<1e-4
+    assert abs(out['k']-k)<1e-4
+    assert abs(out['thickness_nm']-d)<.01
