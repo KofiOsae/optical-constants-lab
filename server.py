@@ -143,6 +143,15 @@ def classical_analysis():
         if not uploaded: raise ValueError('Select a spectrum file')
         preview=inspect_material(uploaded.filename,uploaded.read(),request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
         material={'wavelength_nm':preview['wavelength_nm'],**preview['columns']}
+        sigma,seed=noise_settings()
+        if sigma>0:
+            rng=np.random.default_rng(np.random.SeedSequence([seed,0]))
+            for channel in ('R','T'):
+                if channel in material:
+                    vals=np.asarray(material[channel],float)
+                    material[channel]=np.clip(vals+rng.normal(0.,sigma,vals.size),0.,1.).tolist()
+            if 'absorbance' in material and 'T' in material:
+                raise ValueError('Noise on transmission with independently supplied absorbance is ambiguous; choose one input channel')
         method=request.form.get('method','swanepoel')
         if method=='swanepoel':
             if 'T' not in material: raise ValueError('Swanepoel requires transmission')
