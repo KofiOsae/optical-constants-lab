@@ -164,3 +164,66 @@ def test_multilayer_all_model_warm_start_frontend_controls():
     assert 'const warmCache=new Map()' in page
     assert "for(const id of ['model','basis','osc'])" in page
     assert "warmCache.get(warmKeyFromControls())" in page
+
+def test_noise_copy_seed_reproducibility_and_bounds():
+    import numpy as np
+    import pytest
+    from optical_inversion_package.inversion import Spectrum
+    from custom_spectra import apply_rt_noise
+    w=np.linspace(500.,700.,25)
+    source=Spectrum(w,np.full(25,.2),np.full(25,.6),100.,substrate_n=1.5)
+    first=apply_rt_noise(source,.002,1234,0)
+    repeated=apply_rt_noise(source,.002,1234,0)
+    independent=apply_rt_noise(source,.002,1234,1)
+    unchanged=apply_rt_noise(source,0.,1234,0)
+    assert np.array_equal(first.R,repeated.R)
+    assert np.array_equal(first.T,repeated.T)
+    assert not np.array_equal(first.R,independent.R)
+    assert np.array_equal(unchanged.R,source.R)
+    assert np.array_equal(unchanged.T,source.T)
+    assert np.array_equal(source.R,np.full(25,.2))
+    assert np.array_equal(source.T,np.full(25,.6))
+    assert np.all((first.R>=0)&(first.R<=1))
+    assert np.all((first.T>=0)&(first.T<=1))
+    with pytest.raises(ValueError,match='Noise'):
+        apply_rt_noise(source,.2,1234,0)
+
+
+def test_joint_and_multilayer_noise_api_reproducible():
+    import io,json
+    import numpy as np
+    from server import app
+    from multilayer_forward import coherent_stack
+    w=np.linspace(500.,800.,21)
+    R,T=coherent_stack(w,[(1.9+.04j,120.)],1.5)
+    csv=('wavelength_nm,R,T\n'+'\n'.join(f'{x:.6f},{r:.12f},{t:.12f}' for x,r,t in zip(w,R,T))).encode()
+    client=app.test_client()
+    def send(route):
+        cfg=[{'thickness_nm':120.,'substrate_n':1.5}]
+        d={'spectra':(io.BytesIO(csv),'sample.csv'),
+           'configurations':json.dumps(cfg),
+           'noise_sigma':'.002','noise_seed':'1234',
+           'max_nfev':'12'}
+        if route.endswith('joint-fit') and '/multilayer/' not in route:
+            d.update({'joint_method':'lorentz','oscillators':'1','causal_starts':'1'})
+        else:
+            d.update({'model':'lorentz','oscillators':'1'})
+        return client.post(route,data=d,content_type='multipart/form-data')
+    for route in ('/api/joint-fit','/api/multilayer/joint-fit'):
+        a,b=send(route),send(route)
+        assert a.status_code==200,a.get_json()
+        assert b.status_code==200,b.get_json()
+        aa,bb=a.get_json(),b.get_json()
+        assert aa['noise']['sigma']==.002 and aa['noise']['seed']==1234
+        assert aa['predictions'][0]['R_measured']==bb['predictions'][0]['R_measured']
+        assert aa['predictions'][0]['T_measured']==bb['predictions'][0]['T_measured']
+
+
+def test_all_workflows_expose_noise_controls():
+    root=ROOT/'web'
+    joint=(root/'workspace.html').read_text()
+    multi=(root/'multilayer.html').read_text()
+    for html in (joint,multi):
+        assert 'id="noise_sigma"' in html
+        assert 'id="noise_seed"' in html
+        assert "f.append('noise_sigma'" in html
