@@ -408,6 +408,8 @@ def custom_fit():
                 except (ValueError,TypeError,IndexError) as exc:
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
+        if settings.fit_interface_mixing and request.form.get('reconstruction_model') in ('phase1','historical_logk','blind_absorption_aware'):
+            raise ValueError('Fitting interface mixing is supported in B-spline and causal models; disable it for legacy Phase I/II or blind methods')
         if request.form.get('reconstruction_model')=='phase1':
             if s.R is None or s.T is None:
                 raise ValueError('Phase I requires both R and T')
@@ -496,9 +498,10 @@ def custom_fit():
                     'transparent_threshold_nm':result['transparent_threshold_nm'],'nfev':result['nfev']},
                 'note':'Data-only initializer; thickness fixed. Optical constants may be nonunique.'})
         result=fit([s],settings)
+        if result.get('fitted_interface_mixing_nm') is not None:s.roughness_nm=float(result['fitted_interface_mixing_nm'])
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
-        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
+        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'fitted_interface_mixing_nm':result.get('fitted_interface_mixing_nm'),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
     except Exception as exc:return jsonify({'error':str(exc)}),400
 
 @app.post('/api/fit')
