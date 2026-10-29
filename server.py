@@ -408,6 +408,8 @@ def custom_fit():
                 except (ValueError,TypeError,IndexError) as exc:
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
+        if request.form.get('reconstruction_model') in ('phase1','historical_logk','blind_absorption_aware') and (np.any(np.abs(np.imag(s.substrate_n))>1e-12) or s.substrate_thickness_nm is not None):
+            raise ValueError('Legacy Phase I/II and blind initialization need a lossless semi-infinite substrate; use B-spline or causal inversion for an absorbing or finite coherent substrate')
         if settings.fit_interface_mixing and request.form.get('reconstruction_model') in ('phase1','historical_logk','blind_absorption_aware'):
             raise ValueError('Fitting interface mixing is supported in B-spline and causal models; disable it for legacy Phase I/II or blind methods')
         if request.form.get('reconstruction_model')=='phase1':
