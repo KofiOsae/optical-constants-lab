@@ -21,6 +21,8 @@ class FitSettings:
     n_min:float=0.05
     n_max:float=8.0
     k_max:float=6.0
+    fit_interface_mixing:bool=False
+    mixing_bounds:tuple=(0.,10.)
 
 def validate_spectra(spectra):
     if not spectra: raise ValueError('At least one spectrum is required')
@@ -57,14 +59,21 @@ def make_problem(spectra,settings):
         if not np.isfinite(d_seed) or d_seed<=0:
             raise ValueError('Invalid Swanepoel thickness seed')
         x0[2*m:]=np.clip(d_seed,lower[2*m:]+1e-5,upper[2*m:]-1e-5)
+    if settings.fit_interface_mixing:
+        mix_bounds=np.asarray(settings.mixing_bounds,float)
+        if mix_bounds.shape!=(2,) or not np.all(np.isfinite(mix_bounds)) or not 0<=mix_bounds[0]<mix_bounds[1]<=100:
+            raise ValueError('Interface mixing bounds must satisfy 0 <= min < max <= 100 nm')
+        x0=np.r_[x0,max(mix_bounds[0]+1e-6,min(1.,mix_bounds[1]-1e-6))]
+        lower=np.r_[lower,mix_bounds[0]]
+        upper=np.r_[upper,mix_bounds[1]]
     def residual(x,include_penalty=True):
-        a=x[:m]; b=x[m:2*m]; d=x[2*m:] if n_thick else thicknesses
+        a=x[:m]; b=x[m:2*m]; d=x[2*m:2*m+n_thick] if n_thick else thicknesses
         out=[]
         for s,B,di in zip(spectra,mats,d):
             n=B@a; k=B@b
             violation_n=np.maximum(1e-6-n,0.)
             violation_k=np.maximum(-k,0.)
-            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*np.maximum(k,0.),di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=getattr(s,'roughness_nm',0.),substrate_thickness_nm=getattr(s,'substrate_thickness_nm',None),backing_n=getattr(s,'backing_n',1.))
+            R,T=coherent_film(s.wavelength_nm,np.maximum(n,1e-6)+1j*np.maximum(k,0.),di,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=(float(x[-1]) if settings.fit_interface_mixing else getattr(s,'roughness_nm',0.)),substrate_thickness_nm=getattr(s,'substrate_thickness_nm',None),backing_n=getattr(s,'backing_n',1.))
             out.extend(1000.*violation_n)
             out.extend(1000.*violation_k)
             if s.R is not None: out.extend((R-s.R)/s.sigma_R)
@@ -131,9 +140,9 @@ def fit(spectra,settings):
     def optical_constants(w):
         B=spline_design(np.asarray(w),*domain,m)
         return B@result.x[:m],B@result.x[m:2*m]
-    thickness=result.x[2*m:] if settings.fit_thickness else original_thicknesses
+    thickness=result.x[2*m:2*m+len(spectra)] if settings.fit_thickness else original_thicknesses
     measurements=np.concatenate([residual(result.x,False)])
-    return {'result':result,'optical_constants':optical_constants,'thicknesses':thickness,'weighted_rmse':float(np.sqrt(np.mean(measurements**2))),'history':history,'global_evaluations':evaluations_global,'domain':domain}
+    return {'result':result,'optical_constants':optical_constants,'thicknesses':thickness,'fitted_interface_mixing_nm':float(result.x[-1]) if settings.fit_interface_mixing else None,'weighted_rmse':float(np.sqrt(np.mean(measurements**2))),'history':history,'global_evaluations':evaluations_global,'domain':domain}
 
 def fit_joint_two_stage(spectra, settings):
     """Blind joint Cauchy/log-absorption initialization followed by B-spline refinement."""
