@@ -99,3 +99,27 @@ def test_independent_airy_blind_recovery_and_unseen_thickness():
     assert holdout_rmse<.012, f'Unseen thickness prediction failed: {holdout_rmse}'
     assert fitted['ambiguity']['near_optimal_branches']>=1
     assert fitted['ambiguity']['status'] in ('competing_solutions','not_established')
+
+
+def test_independent_lorentz_recovery_withheld_thickness():
+    """Blind Lorentz fit against independently specified analytic dielectric data."""
+    w=np.linspace(480.,940.,65)
+    energy=1239.841984/w
+    eps=2.5+.3*(2.1**2)/(2.1**2-energy**2-1j*.2*energy)
+    truth=np.sqrt(eps+0j)
+    training=[]
+    for d in (105.,165.):
+        R,T=_independent_airy_rt(w,truth.real,truth.imag,d,substrate_n=1.5)
+        training.append((StackSpectrum(w,R,T,(),(),1.5),d))
+    fitted=fit_dispersive_stacks(training,model='lorentz',
+                                 oscillators=1,max_nfev=250)
+    recovered_n,recovered_k=fitted['optical_constants'](w)
+    n_error=float(np.sqrt(np.mean((recovered_n-truth.real)**2)))
+    k_error=float(np.sqrt(np.mean((recovered_k-truth.imag)**2)))
+    R_unseen,T_unseen=_independent_airy_rt(w,truth.real,truth.imag,137.,1.5)
+    R_pred,T_pred=coherent_stack(w,[(recovered_n+1j*recovered_k,137.)],1.5)
+    holdout_error=float(np.sqrt(np.mean(np.r_[(R_pred-R_unseen),(T_pred-T_unseen)]**2)))
+    assert fitted['result'].success
+    assert n_error<.06, f'Lorentz n RMSE {n_error}'
+    assert k_error<.025, f'Lorentz k RMSE {k_error}'
+    assert holdout_error<.012, f'Lorentz holdout RMSE {holdout_error}'
