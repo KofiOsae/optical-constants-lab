@@ -75,7 +75,7 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         if np.any(lower<=0) or np.any(lower>=upper):
             raise ValueError('Invalid thickness bounds')
         x=np.r_[x,nom];lo=np.r_[lo,lower];hi=np.r_[hi,upper]
-    def residual(p):
+    def data_residual(p):
         chunks=[]
         for i,((s,d),b) in enumerate(zip(samples,B)):
             n,k=nk(np.asarray(s.wavelength_nm,float),p,b)
@@ -87,10 +87,13 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                     if obs.shape!=r.shape or not np.all(np.isfinite(obs)) or sigma<=0:
                         raise ValueError('Invalid measurements or uncertainties')
                     chunks.append((predicted-obs)/sigma)
-        if model=='spline' and smoothness>0:
-            chunks.extend([np.sqrt(smoothness)*np.diff(p[:n_basis],2),
-                           np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)])
         return np.concatenate(chunks)
+    def residual(p):
+        data=data_residual(p)
+        if model=='spline' and smoothness>0:
+            return np.r_[data,np.sqrt(smoothness)*np.diff(p[:n_basis],2),
+                          np.sqrt(smoothness)*np.diff(p[n_basis:disp_count],2)]
+        return data
     if model=='spline': x=np.clip(x,lo+1e-8,hi-1e-8)
     if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial parameters outside bounds')
     # Deterministic metal-aware multistart. The same objective and bounds are
@@ -132,6 +135,7 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         if distinct:
             branches.append({'start_indices':[int(start_index)],
                              'cost':float(fit.cost),
+                             'data_chi2':float(np.dot(data_residual(fit.x),data_residual(fit.x))),
                              'converged':bool(fit.success),
                              'n_probe':np.asarray(ni).tolist(),
                              'k_probe':np.asarray(ki).tolist(),
@@ -141,13 +145,26 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                    | {'relative_cost_increase':float((branch['cost']-best_cost)/max(best_cost,1e-12))}
                    for branch in branches]
     near_equal=sum(b['relative_cost_increase']<=0.05 for b in branch_report)
-    ambiguity={'status':'competing_solutions' if near_equal>1 else 'not_established',
+    best_data_chi2=min((b['data_chi2'] for b in branch_report),default=float('inf'))
+    # Independent noise-scaled objective comparison, excluding smoothness penalties.
+    # Delta chi2 <= 5.99 is an exploratory two-parameter-scale warning threshold,
+    # NOT a confidence interval for high-dimensional non-linear optical inversions.
+    for branch in branch_report:
+        branch['delta_data_chi2']=float(max(0.,branch['data_chi2']-best_data_chi2))
+        branch['noise_equivalent']=bool(branch['delta_data_chi2']<=5.99)
+    near_noise=sum(b['noise_equivalent'] for b in branch_report)
+    ambiguity={'status':'competing_solutions' if max(near_equal,near_noise)>1 else 'not_established',
                'distinct_branches':len(branch_report),
                'near_optimal_branches':near_equal,
+               'noise_equivalent_branches':near_noise,
+               'data_chi2_best':best_data_chi2,
                'probe_wavelength_nm':probe.tolist(),
                'branches':branch_report,
                'note':('Branches differ by >=0.05 RMS in n,k on the probe grid; '
                        'near-optimal means objective cost within 5% of best. '
+                       'Noise-equivalent means data-only delta chi-square <= 5.99 '
+                       'under stated residual sigmas, excluding smoothness penalties; '
+                       'this is a warning screen, not a formal confidence region. '
                        'A single branch does not prove uniqueness; incomplete optimization '
                        'or insufficient multistart coverage can conceal alternatives.')}
     def optical_constants(w):
