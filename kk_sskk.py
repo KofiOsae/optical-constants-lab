@@ -37,7 +37,7 @@ def _pv_integral(energy,epsilon2,queries):
         regular[safe]=numerator[safe]/denominator[safe]
         regular[~safe]=np.interp(q,energy,slope)/(2*q)
         analytic=gq/(2*q)*np.log(((b-q)*(a+q))/((b+q)*(q-a)))
-        values.append(np.trapz(regular,energy)+analytic)
+        values.append(np.trapezoid(regular,energy)+analytic)
     return np.asarray(values)
 
 def kk_finite_band(wavelength_nm,epsilon2,query_wavelength_nm=None,epsilon_inf=1.):
