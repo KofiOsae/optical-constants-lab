@@ -7,13 +7,14 @@ import numpy as np
 from scipy.optimize import least_squares
 from optical_inversion_package.inversion import spline_design
 from scientific_diagnostics import dielectric, jacobian_report
+from organic_dispersion import MODEL_PARAMETER_COUNTS, organic_parameter_setup, organic_dielectric
 from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None):
     if not samples: raise ValueError('At least one sample is required')
-    if model not in ('spline','lorentz','drude_lorentz','kk_constrained'):
+    if model not in ('spline','lorentz','drude_lorentz','kk_constrained',*MODEL_PARAMETER_COUNTS):
         raise ValueError('Unsupported dispersion model')
     if model!='spline' and not 1<=oscillators<=8:
         raise ValueError('Choose 1 to 3 oscillators')
@@ -36,6 +37,12 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         def nk(w,p,b=None):
             basis=b if b is not None else spline_design(w,lowwl,highwl,n_basis)
             return basis@p[:n_basis],basis@p[n_basis:2*n_basis]
+    elif model in MODEL_PARAMETER_COUNTS:
+        x,lo,hi=organic_parameter_setup(model,oscillators,lowwl,highwl)
+        B=[None]*len(samples)
+        def nk(w,p,b=None):
+            z=np.sqrt(organic_dielectric(w,p[:disp_count],model,oscillators)+0j)
+            return z.real,np.maximum(z.imag,0.)
     elif model=='kk_constrained':
         # Fixed positive Lorentz spectral basis: analytic, passive, KK-consistent.
         # Resonances span beyond measured band to mitigate truncation artifacts.
@@ -67,6 +74,18 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             z=np.sqrt(dielectric(w,p[:disp_count],model,oscillators)+0j)
             return z.real,np.maximum(z.imag,0.)
     disp_count=len(x)
+    if parameter_controls is not None:
+        if not isinstance(parameter_controls,dict):
+            raise ValueError('Parameter controls must be an object')
+        for key,arr in [('initial',x),('lower',lo),('upper',hi)]:
+            if key in parameter_controls:
+                value=np.asarray(parameter_controls[key],float)
+                if value.shape!=(disp_count,) or not np.all(np.isfinite(value)):
+                    raise ValueError(f'{key} requires {disp_count} finite coefficients')
+                arr[:disp_count]=value
+        if np.any(lo>=hi) or np.any(x<lo) or np.any(x>hi):
+            raise ValueError('Initial parameters must lie within strict bounds')
+
     if fit_thickness:
         if thickness_bounds is None or len(thickness_bounds)!=len(samples):
             raise ValueError('Provide per-sample thickness bounds')

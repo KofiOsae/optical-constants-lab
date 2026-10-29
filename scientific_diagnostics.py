@@ -4,8 +4,11 @@ Conventions: exp(-i omega t), N=n+i k, energy E=hc/lambda in eV.
 import numpy as np
 from scipy.optimize import least_squares
 from engine import coherent_film
+from organic_dispersion import MODEL_PARAMETER_COUNTS, organic_parameter_setup, organic_dielectric
 
 def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
+    if model in MODEL_PARAMETER_COUNTS:
+        return organic_dielectric(wavelength_nm,params,model,oscillators)
     E=1239.841984/np.asarray(wavelength_nm,float)
     eps=np.full(E.shape,params[0],dtype=complex)
     j=1
@@ -16,18 +19,36 @@ def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
         eps+=strength*center**2/(center**2-E**2-1j*width*E)
     return eps
 
-def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None):
-    if model not in ('lorentz','drude_lorentz') or not 1<=oscillators<=3:
+def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None,parameter_controls=None):
+    if model not in ('lorentz','drude_lorentz',*MODEL_PARAMETER_COUNTS) or not 1<=oscillators<=8:
         raise ValueError('Choose 1–3 Lorentz oscillators, optionally with Drude term')
     allw=np.concatenate([s.wavelength_nm for s in spectra]);elo=1239.841984/max(allw);ehi=1239.841984/min(allw)
-    x=[2.5];lo=[1.0];hi=[25.]
+    if model in MODEL_PARAMETER_COUNTS:
+        x,lo,hi=organic_parameter_setup(model,oscillators,min(allw),max(allw))
+        x=x.tolist();lo=lo.tolist();hi=hi.tolist()
+    else:
+        x=[2.5];lo=[1.0];hi=[25.]
     if model=='drude_lorentz':x.extend([.3,.15]);lo.extend([0.,.001]);hi.extend([10.,5.])
-    for e in np.linspace(elo,ehi,oscillators+2)[1:-1]:
-        x.extend([.3,float(e),.2]);lo.extend([0.,.05,.001]);hi.extend([20.,max(10.,2*ehi),5.])
+    if model not in MODEL_PARAMETER_COUNTS:
+        for e in np.linspace(elo,ehi,oscillators+2)[1:-1]:
+            x.extend([.3,float(e),.2]);lo.extend([0.,.05,.001]);hi.extend([20.,max(10.,2*ehi),5.])
     nom=np.array([s.thickness_nm for s in spectra])
     if fit_thickness:
         x.extend(nom);lo.extend(nom*.95);hi.extend(nom*1.05)
     x=np.array(x);lo=np.array(lo);hi=np.array(hi)
+    if parameter_controls is not None:
+        if not isinstance(parameter_controls,dict):
+            raise ValueError('Parameter controls must be an object')
+        count=len(x)-(len(spectra) if fit_thickness else 0)
+        for key,arr in [('initial',x),('lower',lo),('upper',hi)]:
+            if key in parameter_controls:
+                values=np.asarray(parameter_controls[key],float)
+                if values.shape!=(count,) or not np.all(np.isfinite(values)):
+                    raise ValueError(f'{key} requires {count} finite optical coefficients')
+                arr[:count]=values
+        if np.any(lo>=hi) or np.any(x<lo) or np.any(x>hi):
+            raise ValueError('Initial parameters must lie within strict bounds')
+
     def optical(w,p):
         N=np.sqrt(dielectric(w,p,model,oscillators)+0j)
         return np.real(N),np.maximum(np.imag(N),0.)
@@ -44,12 +65,13 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
     if warm_start is not None:
         previous=np.asarray(warm_start,dtype=float)
         offset=3 if model=='drude_lorentz' else 1
-        expected=offset+3*(oscillators-1)
+        stride=MODEL_PARAMETER_COUNTS.get(model,3)
+        expected=offset+stride*(oscillators-1)
         if fit_thickness: raise ValueError('Warm start requires fixed film thicknesses')
         if previous.shape!=(expected,) or not np.all(np.isfinite(previous)):
             raise ValueError('Warm-start coefficients must represent the same causal model with one fewer oscillator')
         x[:expected]=previous
-        x[expected:expected+3]=[1e-6,float(np.clip((elo+ehi)/2,.05,max(10.,2*ehi))),.1]
+        x[expected:expected+stride]=[1e-6,*x[expected+1:expected+stride]]
     rng=np.random.default_rng(random_seed)
     candidates=[]
     for run in range(multistart):
@@ -57,9 +79,15 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
         if run:
             seed[0]=rng.uniform(1.0,6.0)
             offset=3 if model=='drude_lorentz' else 1
+            if model in MODEL_PARAMETER_COUNTS:
+                for j in range(oscillators):
+                    idx=offset+MODEL_PARAMETER_COUNTS[model]*j
+                    for k in range(MODEL_PARAMETER_COUNTS[model]):
+                        seed[idx+k]=rng.uniform(lo[idx+k]+.01*(hi[idx+k]-lo[idx+k]),
+                                                  lo[idx+k]+.45*(hi[idx+k]-lo[idx+k]))
             if model=='drude_lorentz':
                 seed[1:3]=[rng.uniform(.05,2.0),rng.uniform(.02,1.0)]
-            for j in range(oscillators):
+            for j in range(oscillators if model not in MODEL_PARAMETER_COUNTS else 0):
                 idx=offset+3*j
                 seed[idx:idx+3]=[rng.uniform(.05,2.0),
                     rng.uniform(max(.05,elo*.75),min(hi[idx+1],ehi*1.25)),

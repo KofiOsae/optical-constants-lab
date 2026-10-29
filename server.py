@@ -279,7 +279,7 @@ def joint_fit_api():
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
             thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max)
         method=request.form.get('joint_method','two_stage')
-        if method not in ('two_stage','direct','lorentz','drude_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
+        if method not in ('two_stage','direct','lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         # A single spectrum may be absorbing and can use any supported model.
         # Low-dimensional data may not uniquely identify n, k, and thickness.
         holdout=int(request.form.get('holdout_index','-1'))
@@ -301,9 +301,9 @@ def joint_fit_api():
             fingerprint.update(str(spec.polarization).encode('utf-8'))
         training_fingerprint=fingerprint.hexdigest()
 
-        if method in ('lorentz','drude_lorentz'):
+        if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic'):
             from scientific_diagnostics import fit_causal
-            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None))
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None))
         elif method in ('cauchy','sellmeier'):
             from dispersion_models import fit_transparent_spectra
             outcome=fit_transparent_spectra(training,method,budget,settings.fit_thickness)
