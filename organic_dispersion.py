@@ -8,6 +8,7 @@ Kramers-Kronig compatibility, unlike directly fitting arbitrary k Gaussians.
 from functools import lru_cache
 from math import exp, factorial
 import numpy as np
+from scipy.special import wofz
 
 HC_EV_NM = 1239.841984
 
@@ -45,6 +46,23 @@ def _inhomogeneous(E, strength, center, gamma, sigma, order=24):
         out += w * _lorentz(E, strength, float(c), gamma)
     return out
 
+def _analytic_gaussian_lorentz(E,strength,center,gamma,sigma):
+    """Exact Gaussian convolution over signed resonance energy via Faddeeva.
+
+    The squared resonance denominator makes negative centers passive; this
+    symmetric-energy Gaussian extension is numerically stable for broad bands.
+    Unlike fixed-node quadrature, it cannot create discretization sub-peaks.
+    """
+    if strength<0 or center<=0 or gamma<=0 or sigma<0:
+        raise ValueError('Oscillator requires passive, positive energy/width parameters')
+    if sigma==0:
+        return _lorentz(E,strength,center,gamma)
+    z=np.sqrt(np.asarray(E,float)**2+1j*gamma*np.asarray(E,float))
+    spread=np.sqrt(2.)*sigma
+    minus=1j*np.sqrt(np.pi)/spread*wofz((z-center)/spread)
+    plus=-1j*np.sqrt(np.pi)/spread*wofz((z+center)/spread)
+    return strength*(1.+.5*z*(minus-plus))
+
 def organic_dielectric(wavelength_nm, parameters, model, oscillators=1, quadrature_order=24):
     """Evaluate dielectric function for a selected organic model.
 
@@ -80,7 +98,7 @@ def organic_dielectric(wavelength_nm, parameters, model, oscillators=1, quadratu
             eps += fraction*_lorentz(E,f,e0,3*width)
         elif model == "kk_gaussian":
             f,e0,sigma = q
-            eps += _inhomogeneous(E,f,e0,0.005,sigma,quadrature_order)
+            eps += _analytic_gaussian_lorentz(E,f,e0,0.005,sigma)
         elif model == "voigt":
             f,e0,gamma,sigma = q
             eps += _inhomogeneous(E,f,e0,gamma,sigma,quadrature_order)

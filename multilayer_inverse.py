@@ -23,11 +23,13 @@ class StackSpectrum:
     sigma_R: float = .01
     sigma_T: float = .01
     roughness_nm: object = None
+    substrate_thickness_nm: object = None
+    backing_n: object = 1.
 
 def predict_stack(sample, unknown_n, unknown_k, thickness_nm):
     layers=list(sample.before)+[(np.asarray(unknown_n)+1j*np.asarray(unknown_k),thickness_nm)]+list(sample.after)
     return coherent_stack(sample.wavelength_nm,layers,sample.substrate_n,
-                          sample.ambient_n,sample.angle_deg,sample.polarization,roughness_nm=sample.roughness_nm)
+                          sample.ambient_n,sample.angle_deg,sample.polarization,roughness_nm=sample.roughness_nm,substrate_thickness_nm=sample.substrate_thickness_nm,backing_n=sample.backing_n)
 
 def fit_constant_unknown(sample, thickness_nm, n0=1.8, k0=.02,
                          fit_thickness=False, thickness_bounds=None,

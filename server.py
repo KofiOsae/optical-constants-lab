@@ -236,6 +236,14 @@ def joint_fit_api():
                 raise ValueError('Each configuration must be an object')
             spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
                 c.get('substrate_n',1.5),c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
+            spec.substrate_n=complex(float(c.get('substrate_n',1.5)),float(c.get('substrate_k',0)))
+            if not np.isfinite(spec.substrate_n.real) or not np.isfinite(spec.substrate_n.imag) or spec.substrate_n.real<=0 or spec.substrate_n.imag<0:
+                raise ValueError('Substrate n must be positive and k nonnegative')
+            spec.substrate_thickness_nm=float(c['substrate_thickness_nm']) if c.get('substrate_thickness_nm') not in (None,'') else None
+            if spec.substrate_thickness_nm is not None and (not np.isfinite(spec.substrate_thickness_nm) or spec.substrate_thickness_nm<=0):
+                raise ValueError('Finite substrate thickness must be positive')
+            spec.backing_n=float(c.get('backing_n',1.))
+            if not np.isfinite(spec.backing_n) or spec.backing_n<=0:raise ValueError('Backing index must be positive')
             spec.angle_deg=float(c.get('angle_deg',0))
             spec.roughness_nm=float(c.get('roughness_nm',0))
             if not np.isfinite(spec.roughness_nm) or not 0<=spec.roughness_nm<=100:raise ValueError('Effective mixing thickness must be between 0 and 100 nm')
@@ -279,7 +287,9 @@ def joint_fit_api():
             raise ValueError('Require finite bounds 0 < n_min < n_max <= 30 and 0 < k_max <= 30')
         settings=FitSettings(n_basis=basis,max_nfev=budget,smoothness=smooth,
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
-            thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max)
+            thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max,
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',
+            mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         method=request.form.get('joint_method','two_stage')
         if method not in ('two_stage','direct','lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         # A single spectrum may be absorbing and can use any supported model.
@@ -299,18 +309,24 @@ def joint_fit_api():
                     arr=np.asarray(values,dtype='<f8')
                     fingerprint.update(str(arr.shape).encode('ascii'))
                     fingerprint.update(arr.tobytes())
-            fingerprint.update(np.asarray([spec.thickness_nm,spec.substrate_n,spec.ambient_n,spec.angle_deg,spec.sigma_R,spec.sigma_T],dtype='<f8').tobytes())
+            fingerprint.update(np.asarray([spec.thickness_nm,np.real(spec.substrate_n),np.imag(spec.substrate_n),np.real(spec.ambient_n),spec.angle_deg,spec.sigma_R,spec.sigma_T,spec.roughness_nm,spec.substrate_thickness_nm or 0.,spec.backing_n],dtype='<f8').tobytes())
             fingerprint.update(str(spec.polarization).encode('utf-8'))
         training_fingerprint=fingerprint.hexdigest()
 
         if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic'):
             from scientific_diagnostics import fit_causal
-            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None))
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None),
+                fit_interface_mixing=settings.fit_interface_mixing,interface_mixing_bounds=settings.mixing_bounds)
         elif method in ('cauchy','sellmeier'):
             from dispersion_models import fit_transparent_spectra
             outcome=fit_transparent_spectra(training,method,budget,settings.fit_thickness)
         else:
             outcome=fit_joint_two_stage(training,settings) if method=='two_stage' else fit(training,settings)
+        if settings.fit_interface_mixing and method in ('cauchy','sellmeier'):
+            raise ValueError('Fit interface mixing is available for causal and spline inversion methods')
+        fitted_mixing=outcome.get('fitted_interface_mixing_nm')
+        if fitted_mixing is not None:
+            for spec in spectra:spec.roughness_nm=float(fitted_mixing)
         grid=np.unique(np.concatenate([s.wavelength_nm for s in training]))
         n,k=outcome['optical_constants'](grid)
         predictions=[]
@@ -328,11 +344,11 @@ def joint_fit_api():
         from scientific_diagnostics import jacobian_report
         diagnostics=jacobian_report(outcome['result'])
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
-            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
+            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],fitted_interface_mixing_nm=outcome.get('fitted_interface_mixing_nm'),training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
             noise={'sigma':sigma,'seed':seed,'applied':sigma>0,'clipped_to_physical_range':sigma>0},
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
-            note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent uniform films on semi-infinite lossless substrates.'))
+            note=('Single-spectrum inversion can be non-unique; use independent thickness or additional R/T measurements to validate the recovered n,k. ' if len(spectra)==1 else '')+'Shared n,k; coherent films on passive semi-infinite or finite coherent substrates. Incoherent backside reflections are not modeled.'))
     except (ValueError,TypeError,KeyError,OverflowError) as exc:
         return jsonify({'error':str(exc)}),400
 
@@ -345,6 +361,12 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        s.substrate_n=complex(float(ns),float(request.form.get('substrate_k',0)))
+        if not np.isfinite(s.substrate_n.real) or not np.isfinite(s.substrate_n.imag) or s.substrate_n.real<=0 or s.substrate_n.imag<0:raise ValueError('Invalid complex substrate index')
+        s.substrate_thickness_nm=float(request.form['substrate_thickness_nm']) if request.form.get('substrate_thickness_nm') else None
+        if s.substrate_thickness_nm is not None and (not np.isfinite(s.substrate_thickness_nm) or s.substrate_thickness_nm<=0):raise ValueError('Finite substrate thickness must be positive')
+        s.backing_n=float(request.form.get('backing_n',1.))
+        if not np.isfinite(s.backing_n) or s.backing_n<=0:raise ValueError('Backing index must be positive')
         s.roughness_nm=float(request.form.get('roughness_nm',0))
         if not np.isfinite(s.roughness_nm) or not 0<=s.roughness_nm<=100:raise ValueError('Effective mixing layer must be within 0–100 nm')
         sigma,seed=noise_settings()
@@ -367,7 +389,8 @@ def custom_fit():
         if method not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):raise ValueError('Unknown optimizer')
         basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
         if not 4<=basis<=25 or not 5<=budget<=500:raise ValueError('Invalid basis or budget')
-        settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true')
+        settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true',
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         initialization={'method':'default','warning':None}
         if request.form.get('initialize_from_swanepoel')=='true':
             if s.T is None:
@@ -385,6 +408,10 @@ def custom_fit():
                 except (ValueError,TypeError,IndexError) as exc:
                     initialization={'method':'default','warning':'Swanepoel unavailable: '+str(exc)}
 
+        if request.form.get('reconstruction_model') in ('phase1','historical_logk','blind_absorption_aware') and (np.any(np.abs(np.imag(s.substrate_n))>1e-12) or s.substrate_thickness_nm is not None):
+            raise ValueError('Legacy Phase I/II and blind initialization need a lossless semi-infinite substrate; use B-spline or causal inversion for an absorbing or finite coherent substrate')
+        if settings.fit_interface_mixing and request.form.get('reconstruction_model') in ('phase1','historical_logk','blind_absorption_aware'):
+            raise ValueError('Fitting interface mixing is supported in B-spline and causal models; disable it for legacy Phase I/II or blind methods')
         if request.form.get('reconstruction_model')=='phase1':
             if s.R is None or s.T is None:
                 raise ValueError('Phase I requires both R and T')
@@ -473,9 +500,10 @@ def custom_fit():
                     'transparent_threshold_nm':result['transparent_threshold_nm'],'nfev':result['nfev']},
                 'note':'Data-only initializer; thickness fixed. Optical constants may be nonunique.'})
         result=fit([s],settings)
+        if result.get('fitted_interface_mixing_nm') is not None:s.roughness_nm=float(result['fitted_interface_mixing_nm'])
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
-        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
+        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'fitted_interface_mixing_nm':result.get('fitted_interface_mixing_nm'),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
     except Exception as exc:return jsonify({'error':str(exc)}),400
 
 @app.post('/api/fit')

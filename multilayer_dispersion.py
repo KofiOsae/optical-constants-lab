@@ -12,7 +12,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None, fit_interface_mixing=False, interface_mixing_bounds=(0.,10.)):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained',*MODEL_PARAMETER_COUNTS):
         raise ValueError('Unsupported dispersion model')
@@ -94,12 +94,27 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         if np.any(lower<=0) or np.any(lower>=upper):
             raise ValueError('Invalid thickness bounds')
         x=np.r_[x,nom];lo=np.r_[lo,lower];hi=np.r_[hi,upper]
+    thickness_count=len(samples) if fit_thickness else 0
+    roughness_index=disp_count+thickness_count
+    if fit_interface_mixing:
+        bounds=np.asarray(interface_mixing_bounds,float)
+        if bounds.shape!=(2,) or not np.all(np.isfinite(bounds)) or not 0<=bounds[0]<bounds[1]<=100:
+            raise ValueError('Interface mixing fit requires bounds between 0 and 100 nm')
+        x=np.r_[x,max(bounds[0],min(1.,bounds[1]))]
+        lo=np.r_[lo,bounds[0]]
+        hi=np.r_[hi,bounds[1]]
     def data_residual(p):
         chunks=[]
         for i,((s,d),b) in enumerate(zip(samples,B)):
             n,k=nk(np.asarray(s.wavelength_nm,float),p,b)
             thickness=p[disp_count+i] if fit_thickness else d
-            r,t=predict_stack(s,n,k,thickness)
+            if fit_interface_mixing:
+                import dataclasses
+                count=len(s.before)+len(s.after)+2+(1 if s.substrate_thickness_nm is not None else 0)
+                sample=dataclasses.replace(s,roughness_nm=(float(p[roughness_index]),)*count)
+            else:
+                sample=s
+            r,t=predict_stack(sample,n,k,thickness)
             for measured,predicted,sigma in ((s.R,r,s.sigma_R),(s.T,t,s.sigma_T)):
                 if measured is not None:
                     obs=np.asarray(measured,float)
@@ -233,7 +248,8 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
     def optical_constants(w):
         return nk(np.asarray(w,float),result.x)
     return {'result':result,'optical_constants':optical_constants,
-            'thicknesses':result.x[disp_count:] if fit_thickness else nom,
+            'thicknesses':result.x[disp_count:disp_count+thickness_count] if fit_thickness else nom,
+            'fitted_interface_mixing_nm':float(result.x[roughness_index]) if fit_interface_mixing else None,
             'weighted_rmse':float(np.sqrt(np.mean(result.fun**2))),
             'sensitivity':jacobian_report(result),
             'ambiguity':ambiguity,

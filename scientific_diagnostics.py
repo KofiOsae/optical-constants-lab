@@ -19,7 +19,7 @@ def dielectric(wavelength_nm, params, model='lorentz', oscillators=1):
         eps+=strength*center**2/(center**2-E**2-1j*width*E)
     return eps
 
-def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None,parameter_controls=None):
+def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=False,multistart=1,random_seed=20261026,warm_start=None,parameter_controls=None,fit_interface_mixing=False,interface_mixing_bounds=(0.,10.)):
     if model not in ('lorentz','drude_lorentz',*MODEL_PARAMETER_COUNTS) or not 1<=oscillators<=8:
         raise ValueError('Choose 1–3 Lorentz oscillators, optionally with Drude term')
     allw=np.concatenate([s.wavelength_nm for s in spectra]);elo=1239.841984/max(allw);ehi=1239.841984/min(allw)
@@ -49,14 +49,23 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
         if np.any(lo>=hi) or np.any(x<lo) or np.any(x>hi):
             raise ValueError('Initial parameters must lie within strict bounds')
 
+    dispersion_count=len(x)-(len(spectra) if fit_thickness else 0)
+    thickness_offset=dispersion_count
+    if fit_interface_mixing:
+        bounds=np.asarray(interface_mixing_bounds,float)
+        if bounds.shape!=(2,) or not np.all(np.isfinite(bounds)) or not 0<=bounds[0]<bounds[1]<=100:
+            raise ValueError('Fit interface mixing bounds must satisfy 0 <= min < max <= 100 nm')
+        x=np.r_[x,max(bounds[0]+1e-6,min(1.,bounds[1]-1e-6))]
+        lo=np.r_[lo,bounds[0]]
+        hi=np.r_[hi,bounds[1]]
     def optical(w,p):
-        N=np.sqrt(dielectric(w,p,model,oscillators)+0j)
+        N=np.sqrt(dielectric(w,p[:dispersion_count],model,oscillators)+0j)
         return np.real(N),np.maximum(np.imag(N),0.)
     def residual(p):
         out=[]
         for i,s in enumerate(spectra):
-            n,k=optical(s.wavelength_nm,p);d=p[-len(spectra)+i] if fit_thickness else s.thickness_nm
-            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=getattr(s,'roughness_nm',0.))
+            n,k=optical(s.wavelength_nm,p);d=p[thickness_offset+i] if fit_thickness else s.thickness_nm
+            R,T=coherent_film(s.wavelength_nm,n+1j*k,d,s.substrate_n,s.ambient_n,s.angle_deg,s.polarization,roughness_nm=(float(p[-1]) if fit_interface_mixing else getattr(s,'roughness_nm',0.)),substrate_thickness_nm=getattr(s,'substrate_thickness_nm',None),backing_n=getattr(s,'backing_n',1.))
             if s.R is not None:out.extend((R-s.R)/s.sigma_R)
             if s.T is not None:out.extend((T-s.T)/s.sigma_T)
         return np.array(out)
@@ -93,7 +102,7 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
                     rng.uniform(max(.05,elo*.75),min(hi[idx+1],ehi*1.25)),
                     rng.uniform(.02,.6)]
             if fit_thickness:
-                seed[-len(spectra):]=nom*rng.uniform(.98,1.02,size=len(spectra))
+                seed[thickness_offset:thickness_offset+len(spectra)]=nom*rng.uniform(.98,1.02,size=len(spectra))
         seed=np.clip(seed,lo+1e-9*(hi-lo),hi-1e-9*(hi-lo))
         starting_rmse=float(np.sqrt(np.mean(residual(seed)**2)))
         trial=least_squares(residual,seed,bounds=(lo,hi),max_nfev=max_nfev,x_scale='jac')
@@ -102,9 +111,10 @@ def fit_causal(spectra,model='lorentz',oscillators=1,max_nfev=180,fit_thickness=
     result=candidates[0][1]
     p=result.x.copy()
     return dict(result=result,optical_constants=lambda w:optical(w,p),
-        thicknesses=p[-len(spectra):] if fit_thickness else nom,
+        thicknesses=p[thickness_offset:thickness_offset+len(spectra)] if fit_thickness else nom,
+        fitted_interface_mixing_nm=float(p[-1]) if fit_interface_mixing else None,
         weighted_rmse=float(np.sqrt(np.mean(residual(p)**2))),
-        stages={'selected':model,'oscillators':oscillators,'coefficients':p.tolist(),'multistart':multistart,'random_seed':random_seed,'warm_start_used':warm_start is not None,'start_results':[{'initialization':int(start),'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'status':int(trial.status),'nfev':int(trial.nfev),'message':str(trial.message),'selected':bool(i==0),'coefficients':trial.x.tolist(),'initial_coefficients':seed,'initial_weighted_rmse':start_rmse} for i,(score,trial,start,seed,start_rmse) in enumerate(candidates)]},
+        stages={'selected':model,'oscillators':oscillators,'coefficients':p[:dispersion_count].tolist(),'fitted_interface_mixing_nm':float(p[-1]) if fit_interface_mixing else None,'multistart':multistart,'random_seed':random_seed,'warm_start_used':warm_start is not None,'start_results':[{'initialization':int(start),'weighted_rmse':float(np.sqrt(score)),'success':bool(trial.success),'status':int(trial.status),'nfev':int(trial.nfev),'message':str(trial.message),'selected':bool(i==0),'coefficients':trial.x.tolist(),'initial_coefficients':seed,'initial_weighted_rmse':start_rmse} for i,(score,trial,start,seed,start_rmse) in enumerate(candidates)]},
         model=model)
 
 def jacobian_report(result, noise_is_known=True):

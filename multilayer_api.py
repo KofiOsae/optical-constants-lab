@@ -32,6 +32,14 @@ def parse_layers(layers,w):
         result.append((value,d))
     return tuple(result)
 
+def substrate_index(configuration,w):
+    table=configuration.get('substrate_ri')
+    if table is None:
+        return complex(float(configuration.get('substrate_n',1.5)),float(configuration.get('substrate_k',0)))
+    if not isinstance(table,dict):
+        raise ValueError('Substrate RI table must be an object')
+    return parse_layers([dict(table,thickness_nm=0.)],w)[0][0]
+
 @multilayer_api.post('/api/multilayer/preview')
 def multilayer_preview():
     try:
@@ -89,7 +97,9 @@ def multilayer_joint_fit():
                 roughness_nm=tuple(float(v) for v in c['interface_mixing_nm']) if c.get('interface_mixing_nm') is not None else None,
                 before=parse_layers(c.get('before',[]),w),
                 after=parse_layers(c.get('after',[]),w),
-                substrate_n=float(c.get('substrate_n',1.5)),
+                substrate_n=substrate_index(c,w),
+                substrate_thickness_nm=float(c['substrate_thickness_nm']) if c.get('substrate_thickness_nm') not in (None,'') else None,
+                backing_n=float(c.get('backing_n',1.)),
                 ambient_n=float(c.get('ambient_n',1.)),
                 angle_deg=angle,polarization=pol,
                 sigma_R=float(c.get('sigma_R',.005)),
@@ -136,7 +146,9 @@ def multilayer_joint_fit():
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
             initial_parameters=initial,initial_reference=expanded_warm,
-            parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None)
+            parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None,
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',
+            interface_mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
@@ -158,6 +170,10 @@ def multilayer_joint_fit():
         predictions=[]
         for i,(s,d) in enumerate(samples):
             ni,ki=out['optical_constants'](s.wavelength_nm)
+            if out.get('fitted_interface_mixing_nm') is not None:
+                import dataclasses
+                count=len(s.before)+len(s.after)+2+(1 if s.substrate_thickness_nm is not None else 0)
+                s=dataclasses.replace(s,roughness_nm=(out['fitted_interface_mixing_nm'],)*count)
             r,t=predict_stack(s,ni,ki,out['thicknesses'][i])
             errors=[]
             if s.R is not None:errors.extend((r-s.R).tolist())
@@ -182,7 +198,7 @@ def multilayer_joint_fit():
                 'oscillators':oscillator_count,'wavelength_range_nm':[fit_low,fit_high],
                 'dispersion_parameters':out['dispersion_parameters']},
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
-            'weighted_rmse':out['weighted_rmse'],'predictions':predictions,
+            'weighted_rmse':out['weighted_rmse'],'fitted_interface_mixing_nm':out.get('fitted_interface_mixing_nm'),'predictions':predictions,
             'dispersion_diagnostic':diagnostic,
             'sensitivity':out['sensitivity'],
             'dispersion_parameters':out['dispersion_parameters'],
@@ -230,7 +246,9 @@ def multilayer_forward_validation():
         sample=StackSpectrum(w,spec.R,spec.T,
             before=parse_layers(cfg.get('before',[]),w),
             after=parse_layers(cfg.get('after',[]),w),
-            substrate_n=float(cfg.get('substrate_n',1.5)),
+            substrate_n=substrate_index(cfg,w),
+            substrate_thickness_nm=float(cfg['substrate_thickness_nm']) if cfg.get('substrate_thickness_nm') not in (None,'') else None,
+            backing_n=float(cfg.get('backing_n',1.)),
             ambient_n=float(cfg.get('ambient_n',1.)),
             angle_deg=float(cfg.get('angle_deg',0.)),
             polarization=str(cfg.get('polarization','s')).lower())
