@@ -345,6 +345,8 @@ def custom_fit():
         if structure not in ('supported','freestanding'): raise ValueError('This structure is not yet supported by the R/T inverse model')
         ns='1' if structure=='freestanding' else request.form.get('substrate_n','1')
         s=parse_spectrum(uploaded.filename,uploaded.read(),request.form.get('thickness_nm','1000'),ns,request.form.get('wavelength_unit','auto'),request.form.get('signal_unit','auto'))
+        s.roughness_nm=float(request.form.get('roughness_nm',0))
+        if not np.isfinite(s.roughness_nm) or not 0<=s.roughness_nm<=100:raise ValueError('Effective mixing layer must be within 0–100 nm')
         sigma,seed=noise_settings()
         s=apply_rt_noise(s,sigma,seed)
         # Restrict the numerical inversion itself to the user-selected wavelengths.
