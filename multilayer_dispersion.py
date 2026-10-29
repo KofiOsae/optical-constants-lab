@@ -12,7 +12,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained',*MODEL_PARAMETER_COUNTS):
         raise ValueError('Unsupported dispersion model')
@@ -74,6 +74,18 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
             z=np.sqrt(dielectric(w,p[:disp_count],model,oscillators)+0j)
             return z.real,np.maximum(z.imag,0.)
     disp_count=len(x)
+    if parameter_controls is not None:
+        if not isinstance(parameter_controls,dict):
+            raise ValueError('Parameter controls must be an object')
+        for key,arr in [('initial',x),('lower',lo),('upper',hi)]:
+            if key in parameter_controls:
+                value=np.asarray(parameter_controls[key],float)
+                if value.shape!=(disp_count,) or not np.all(np.isfinite(value)):
+                    raise ValueError(f'{key} requires {disp_count} finite coefficients')
+                arr[:disp_count]=value
+        if np.any(lo>=hi) or np.any(x<lo) or np.any(x>hi):
+            raise ValueError('Initial parameters must lie within strict bounds')
+
     if fit_thickness:
         if thickness_bounds is None or len(thickness_bounds)!=len(samples):
             raise ValueError('Provide per-sample thickness bounds')
