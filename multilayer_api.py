@@ -96,13 +96,30 @@ def multilayer_joint_fit():
         bounds=None
         if fit_thickness:
             bounds=[tuple(map(float,c['thickness_bounds_nm'])) for c in configs]
+        initial=None
+        warm_raw=request.form.get('warm_start','').strip()
+        fit_low=min(float(s.wavelength_nm.min()) for s,d in samples)
+        fit_high=max(float(s.wavelength_nm.max()) for s,d in samples)
+        basis=int(request.form.get('n_basis',8))
+        oscillator_count=int(request.form.get('oscillators',1))
+        if warm_raw:
+            warm=json.loads(warm_raw)
+            if not isinstance(warm,dict) or warm.get('model')!=model:
+                raise ValueError('Warm-start model must match selected dispersion model')
+            if int(warm.get('n_basis',-1))!=basis or int(warm.get('oscillators',-1))!=oscillator_count:
+                raise ValueError('Warm-start basis and oscillator settings must match')
+            domain=warm.get('wavelength_range_nm',[])
+            if len(domain)!=2 or not np.allclose(domain,[fit_low,fit_high],rtol=0,atol=1e-5):
+                raise ValueError('Warm-start wavelength domain must match the current fitting domain')
+            initial=warm.get('dispersion_parameters')
         out=fit_dispersive_stacks(samples,model=model,
-            n_basis=int(request.form.get('n_basis',8)),
+            n_basis=basis,
             smoothness=float(request.form.get('smoothness',.01)),
-            oscillators=int(request.form.get('oscillators',1)),
+            oscillators=oscillator_count,
             fit_thickness=fit_thickness,thickness_bounds=bounds,
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
-            max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))))
+            max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
+            initial_parameters=initial)
         grid=np.linspace(min(s.wavelength_nm.min() for s,d in samples),
                          max(s.wavelength_nm.max() for s,d in samples),201)
         n,k=out['optical_constants'](grid)
@@ -140,6 +157,10 @@ def multilayer_joint_fit():
         return jsonify({'success':bool(out['result'].success),
             'message':str(out['result'].message),'model':model,
             'fit_thickness':bool(fit_thickness),
+            'warm_start_used':bool(out['warm_start_used']),
+            'warm_start_package':{'model':model,'n_basis':basis,
+                'oscillators':oscillator_count,'wavelength_range_nm':[fit_low,fit_high],
+                'dispersion_parameters':out['dispersion_parameters']},
             'wavelength_nm':grid.tolist(),'n':n.tolist(),'k':k.tolist(),
             'weighted_rmse':out['weighted_rmse'],'predictions':predictions,
             'dispersion_diagnostic':diagnostic,
