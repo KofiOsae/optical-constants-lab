@@ -287,7 +287,9 @@ def joint_fit_api():
             raise ValueError('Require finite bounds 0 < n_min < n_max <= 30 and 0 < k_max <= 30')
         settings=FitSettings(n_basis=basis,max_nfev=budget,smoothness=smooth,
             optimizer=optimizer,fit_thickness=request.form.get('fit_thickness')=='true',
-            thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max)
+            thickness_tolerance=tolerance,n_min=n_min,n_max=n_max,k_max=k_max,
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',
+            mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         method=request.form.get('joint_method','two_stage')
         if method not in ('two_stage','direct','lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         # A single spectrum may be absorbing and can use any supported model.
@@ -313,12 +315,18 @@ def joint_fit_api():
 
         if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic'):
             from scientific_diagnostics import fit_causal
-            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None))
+            outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None),
+                fit_interface_mixing=settings.fit_interface_mixing,interface_mixing_bounds=settings.mixing_bounds)
         elif method in ('cauchy','sellmeier'):
             from dispersion_models import fit_transparent_spectra
             outcome=fit_transparent_spectra(training,method,budget,settings.fit_thickness)
         else:
             outcome=fit_joint_two_stage(training,settings) if method=='two_stage' else fit(training,settings)
+        if settings.fit_interface_mixing and method in ('cauchy','sellmeier'):
+            raise ValueError('Fit interface mixing is available for causal and spline inversion methods')
+        fitted_mixing=outcome.get('fitted_interface_mixing_nm')
+        if fitted_mixing is not None:
+            for spec in spectra:spec.roughness_nm=float(fitted_mixing)
         grid=np.unique(np.concatenate([s.wavelength_nm for s in training]))
         n,k=outcome['optical_constants'](grid)
         predictions=[]
@@ -336,7 +344,7 @@ def joint_fit_api():
         from scientific_diagnostics import jacobian_report
         diagnostics=jacobian_report(outcome['result'])
         return jsonify(dict(wavelength_nm=grid.tolist(),n=n.tolist(),k=k.tolist(),
-            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
+            predictions=predictions,weighted_rmse=outcome['weighted_rmse'],fitted_interface_mixing_nm=outcome.get('fitted_interface_mixing_nm'),training_fingerprint=training_fingerprint,stages=outcome.get('stages'),
             noise={'sigma':sigma,'seed':seed,'applied':sigma>0,'clipped_to_physical_range':sigma>0},
             sensitivity=diagnostics,holdout_index=holdout,
             success=bool(outcome['result'].success),message=str(outcome['result'].message),
@@ -381,7 +389,8 @@ def custom_fit():
         if method not in ('least_squares','multistart','differential_evolution','hho','hho_hybrid'):raise ValueError('Unknown optimizer')
         basis=int(request.form.get('basis','8'));budget=int(request.form.get('max_nfev','100'))
         if not 4<=basis<=25 or not 5<=budget<=500:raise ValueError('Invalid basis or budget')
-        settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true')
+        settings=FitSettings(n_basis=basis,optimizer=method,max_nfev=budget,fit_thickness=request.form.get('fit_thickness')=='true',
+            fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         initialization={'method':'default','warning':None}
         if request.form.get('initialize_from_swanepoel')=='true':
             if s.T is None:
