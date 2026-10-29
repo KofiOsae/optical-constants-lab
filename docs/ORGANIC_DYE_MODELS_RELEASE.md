@@ -25,4 +25,6 @@ This branch begins a **shared** dispersion-engine extension. It is NOT a complet
 ## Status
 * Shared organic dielectric evaluator: implemented in organic_dispersion.py.
 * Unit tests: added, not yet confirmed by CI.
-* Optimizer integration, UI parity, tutorial updates and deployment: pending. 
+* Shared-model backend wiring to single, joint, and multilayer: committed on this branch, not yet end-to-end verified.
+* Existing model dropdown additions, advanced parameter entry and documentation: committed; validation of actual browser workflows remains outstanding.
+* Automatic numerical CI, synthetic inversion recovery, export parity, and Render deployment: pending. Do not release until verified. 
