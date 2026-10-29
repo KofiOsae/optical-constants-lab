@@ -227,3 +227,53 @@ def test_all_workflows_expose_noise_controls():
         assert 'id="noise_sigma"' in html
         assert 'id="noise_seed"' in html
         assert "f.append('noise_sigma'" in html
+
+def test_multilayer_staged_lorentz_api_high_to_full_wavelengths():
+    import io,json
+    import numpy as np
+    from server import app
+    from multilayer_forward import coherent_stack
+    w=np.linspace(450.,950.,26)
+    eps=2.5+.3*(2.1**2)/(2.1**2-(1239.841984/w)**2-1j*.2*(1239.841984/w))
+    nk=np.sqrt(eps+0j)
+    rr,tt=coherent_stack(w,[(1.65,60.),(nk,130.)],1.5)
+    csv=('wavelength_nm,R,T\n'+'\n'.join(f'{x:.6f},{r:.12f},{t:.12f}' for x,r,t in zip(w,rr,tt))).encode()
+    def post(lo=None,hi=None,previous=None):
+        cfg={'thickness_nm':130.,'substrate_n':1.5,
+             'before':[{'n':1.65,'thickness_nm':60.}]}
+        if lo is not None:cfg['fit_range_nm']=[lo,hi]
+        body={'spectra':(io.BytesIO(csv),'spectrum.csv'),
+              'configurations':json.dumps([cfg]),'model':'lorentz',
+              'oscillators':'1','max_nfev':'45'}
+        if previous is not None:body['warm_start_spectrum']=json.dumps(previous)
+        return app.test_client().post('/api/multilayer/joint-fit',data=body,
+                                      content_type='multipart/form-data')
+    first=post(690.,950.)
+    assert first.status_code==200,first.get_json()
+    stage=first.get_json()
+    assert min(stage['wavelength_nm'])>=690
+    assert not stage['warm_start_used']
+    previous={'source':'previous_multilayer_fit','model':'lorentz',
+              'wavelength_nm':stage['wavelength_nm'],
+              'n':stage['n'],'k':stage['k']}
+    second=post(previous=previous)
+    assert second.status_code==200,second.get_json()
+    extended=second.get_json()
+    assert min(extended['wavelength_nm'])<min(stage['wavelength_nm'])
+    assert extended['warm_start_used'] is True
+    assert extended['warm_start_transferred'] is True
+    assert extended['multistart']['attempts']>=1
+    bad={**previous,'model':'spline'}
+    rejected=post(previous=bad)
+    assert rejected.status_code==400
+
+
+def test_multilayer_preview_is_button_only_and_staged_controls_present():
+    import re
+    html=(ROOT/'web'/'multilayer.html').read_text(encoding='utf8')
+    assert 'id="previewPanel" hidden' in html
+    assert "$('previewButton').onclick=previewSpectra" in html
+    assert "addEventListener('change',previewSpectra)" not in html
+    assert "onclick=()=>runMultilayer('stage1')" in html
+    assert "onclick=()=>runMultilayer('stage2')" in html
+    assert "f.append('warm_start_spectrum'" in html
