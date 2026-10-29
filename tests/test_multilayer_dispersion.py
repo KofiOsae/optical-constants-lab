@@ -123,3 +123,22 @@ def test_independent_lorentz_recovery_withheld_thickness():
     assert n_error<.06, f'Lorentz n RMSE {n_error}'
     assert k_error<.025, f'Lorentz k RMSE {k_error}'
     assert holdout_error<.012, f'Lorentz holdout RMSE {holdout_error}'
+
+
+def test_thin_film_indistinguishable_branches_are_not_reported_unique():
+    """Negative control: distinct optical constants have experimentally indistinguishable R/T."""
+    w=np.linspace(450.,850.,41)
+    aR,aT=_independent_airy_rt(w,1.7,.02,1.,1.5)
+    bR,bT=_independent_airy_rt(w,2.6,.01,1.,1.5)
+    diff=np.sqrt(np.mean(np.r_[(aR-bR),(aT-bT)]**2))
+    assert diff<.001, 'Negative control was not spectrally ambiguous'
+    sample=StackSpectrum(w,aR,aT,(),(),1.5,
+                         sigma_R=.005,sigma_T=.005)
+    fit=fit_dispersive_stacks([(sample,1.)],model='spline',
+                              n_basis=4,smoothness=.01,max_nfev=80,
+                              optical_bounds=(.1,5.,0.,2.))
+    ambiguity=fit['ambiguity']
+    # This test is intentionally an identifiability gate rather than a
+    # goodness-of-fit gate; a numerically tiny RMSE must not imply unique n,k.
+    assert ambiguity['near_optimal_branches']>=2, ambiguity
+    assert ambiguity['status']=='competing_solutions'
