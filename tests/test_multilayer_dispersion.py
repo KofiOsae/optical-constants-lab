@@ -54,3 +54,48 @@ def test_multilayer_branch_diagnostic_is_reference_independent():
                for b in report['branches'])
     assert all(b['relative_cost_increase']>=-1e-8 for b in report['branches'])
     assert 'reference' not in out
+
+
+def _independent_airy_rt(w, n, k, thickness_nm, substrate_n=1.5):
+    """Independent normal-incidence Airy amplitude formula; not coherent_stack."""
+    N=np.asarray(n)+1j*np.asarray(k)
+    r01=(1-N)/(1+N)
+    r12=(N-substrate_n)/(N+substrate_n)
+    t01=2/(1+N)
+    t12=2*N/(N+substrate_n)
+    phase=np.exp(2j*np.pi*N*thickness_nm/np.asarray(w))
+    denominator=1+r01*r12*phase**2
+    R=np.abs((r01+r12*phase**2)/denominator)**2
+    T=substrate_n*np.abs(t01*t12*phase/denominator)**2
+    return R,T
+
+
+def test_independent_airy_blind_recovery_and_unseen_thickness():
+    """No use of truth/reference RI during fitting or branch selection."""
+    w=np.linspace(470.,850.,65)
+    truth_n=1.85+0.045*(w-650.)/380.
+    truth_k=.055+.012*np.exp(-((w-590.)/95.)**2)
+    rng=np.random.default_rng(20261029)
+    training=[]
+    for d in (115.,205.):
+        R,T=_independent_airy_rt(w,truth_n,truth_k,d)
+        R=np.clip(R+rng.normal(0,.0005,len(w)),0,1)
+        T=np.clip(T+rng.normal(0,.0005,len(w)),0,1)
+        training.append((StackSpectrum(w,R,T,(),(),1.5,sigma_R=.0005,sigma_T=.0005),d))
+    fitted=fit_dispersive_stacks(training,model='spline',n_basis=5,
+                                 smoothness=.01,max_nfev=140,
+                                 optical_bounds=(1.,3.,0.,.5))
+    recovered_n,recovered_k=fitted['optical_constants'](w)
+    n_rmse=float(np.sqrt(np.mean((recovered_n-truth_n)**2)))
+    k_rmse=float(np.sqrt(np.mean((recovered_k-truth_k)**2)))
+    # Unseen specimen is generated independently, and is never passed to fit.
+    truth_R,truth_T=_independent_airy_rt(w,truth_n,truth_k,157.)
+    predicted_R,predicted_T=coherent_stack(w,[(recovered_n+1j*recovered_k,157.)],1.5)
+    holdout_rmse=float(np.sqrt(np.mean(np.r_[(predicted_R-truth_R),
+                                               (predicted_T-truth_T)]**2)))
+    assert fitted['result'].success, 'Solver did not converge'
+    assert n_rmse<.06, f'Independent n error too large: {n_rmse}'
+    assert k_rmse<.025, f'Independent k error too large: {k_rmse}'
+    assert holdout_rmse<.012, f'Unseen thickness prediction failed: {holdout_rmse}'
+    assert fitted['ambiguity']['near_optimal_branches']>=1
+    assert fitted['ambiguity']['status'] in ('competing_solutions','not_established')
