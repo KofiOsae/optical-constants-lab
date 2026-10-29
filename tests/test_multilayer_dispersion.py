@@ -140,5 +140,6 @@ def test_thin_film_indistinguishable_branches_are_not_reported_unique():
     ambiguity=fit['ambiguity']
     # This test is intentionally an identifiability gate rather than a
     # goodness-of-fit gate; a numerically tiny RMSE must not imply unique n,k.
-    assert ambiguity['near_optimal_branches']>=2, ambiguity
+    assert ambiguity['distinct_branches']>=2, ambiguity
+    assert ambiguity['noise_equivalent_branches']>=2, ambiguity
     assert ambiguity['status']=='competing_solutions'
