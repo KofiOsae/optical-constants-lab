@@ -119,6 +119,11 @@ def home():return send_from_directory(ROOT/'web','workspace.html')
 def multilayer_page():
     return send_from_directory(ROOT/'web','multilayer.html')
 
+@app.get('/examples/v2/<path:filename>')
+def v2_example_csv(filename):
+    """Public synthetic teaching files; serve from the dedicated example folder."""
+    return send_from_directory(ROOT/'examples'/'v2', filename)
+
 @app.get('/legacy')
 def legacy():return send_from_directory(ROOT/'web','index.html')
 
