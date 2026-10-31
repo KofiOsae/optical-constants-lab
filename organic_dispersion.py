@@ -63,6 +63,45 @@ def _analytic_gaussian_lorentz(E,strength,center,gamma,sigma):
     plus=-1j*np.sqrt(np.pi)/spread*wofz((z+center)/spread)
     return strength*(1.+.5*z*(minus-plus))
 
+
+def _tauc_lorentz(E, A, Eg, separation, C):
+    """Jellison-Modine imaginary dielectric function and finite quadrature KK real part.
+
+    E0=Eg+separation ensures the oscillator peak lies above the optical onset.
+    KK integral uses 512-point Gauss-Legendre quadrature over [Eg, 80 eV];
+    the finite tail truncation is an approximation, not an exact analytic TL.
+    """
+    from numpy.polynomial.legendre import leggauss
+    if not (A >= 0 and Eg > 0 and separation > 0 and C > 0):
+        raise ValueError('Tauc-Lorentz requires A>=0, Eg>0, E0>Eg and C>0')
+    E=np.asarray(E,float)
+    E0=Eg+separation
+    def im(x):
+        x=np.asarray(x,float)
+        out=np.zeros_like(x)
+        valid=x>Eg
+        z=x[valid]
+        out[valid]=A*C*E0*(z-Eg)**2/(z*((z*z-E0*E0)**2+C*C*z*z))
+        return out
+    x0,weights=_tl_nodes()
+    upper=max(80., E0+30*C, float(np.max(E))*4.)
+    x=Eg+(upper-Eg)*(x0+1)/2
+    dx=weights*(upper-Eg)/2
+    f=im(x)
+    fp=im(E)
+    denominator=x[None,:]**2-E[:,None]**2
+    term=(f[None,:]-fp[:,None])*x[None,:]/np.where(np.abs(denominator)<1e-10,1e-10,denominator)
+    integral=np.sum(term*dx[None,:],axis=1)
+    # Analytic principal value for the subtracted constant eps2(E).
+    lower_term=np.maximum(np.abs(Eg*Eg-E*E),1e-30)
+    upper_term=np.maximum(np.abs(upper*upper-E*E),1e-30)
+    integral+=.5*fp*np.log(upper_term/lower_term)
+    return (2/np.pi)*integral+1j*fp
+
+@lru_cache(maxsize=1)
+def _tl_nodes():
+    return np.polynomial.legendre.leggauss(512)
+
 def organic_dielectric(wavelength_nm, parameters, model, oscillators=1, quadrature_order=24):
     """Evaluate dielectric function for a selected organic model.
 
@@ -102,6 +141,8 @@ def organic_dielectric(wavelength_nm, parameters, model, oscillators=1, quadratu
         elif model == "voigt":
             f,e0,gamma,sigma = q
             eps += _inhomogeneous(E,f,e0,gamma,sigma,quadrature_order)
+        elif model == "tauc_lorentz":
+            eps += _tauc_lorentz(E,*q)
         else:
             f,e00,delta,gamma,S = q
             if delta <= 0 or S < 0:
@@ -137,6 +178,10 @@ def organic_parameter_setup(model, oscillators, low_wavelength_nm, high_waveleng
             values=[.3,float(energy),.08,.12]
             lb=[0.,.05,.001,0.]
             ub=[20.,max(10.,2*ehi),5.,5.]
+        elif model=="tauc_lorentz":
+            values=[3.,max(.2,float(energy)*.65),max(.1,float(energy)*.35),.3]
+            lb=[0.,.02,.02,.005]
+            ub=[100.,max(10.,2*ehi),max(10.,2*ehi),8.]
         else:
             values=[.3,float(energy),.17,.12,1.]
             lb=[0.,.05,.001,.001,0.]
