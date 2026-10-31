@@ -2,6 +2,7 @@ name: Classical optics numerical tests
 on:
   push:
     paths:
+      - 'organic_dispersion.py'
       - 'material_csv.py'
       - 'multilayer.py'
       - 'scientific_diagnostics.py'
