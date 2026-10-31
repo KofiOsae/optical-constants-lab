@@ -13,6 +13,7 @@ from scipy.special import wofz
 HC_EV_NM = 1239.841984
 
 MODEL_PARAMETER_COUNTS = {
+    'tauc_lorentz': 4,  # A, Eg, E0-minus-Eg, C
     "modified_lorentz": 4,  # f, E0, width, broad_component_fraction
     "kk_gaussian": 3,       # f, E0, sigma
     "voigt": 4,             # f, E0, gamma, sigma
