@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install numpy scipy pandas pytest
+      - run: python -m pip install -r requirements.txt pytest
       - run: python -m unittest discover -s tests -p 'test_material_csv.py' -v
       - run: python -m unittest discover -s tests -p 'test_multilayer.py' -v
       - run: python -m unittest discover -s tests -p 'test_lorentz_forward.py' -v
