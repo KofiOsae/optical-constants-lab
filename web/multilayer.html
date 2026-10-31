@@ -112,4 +112,29 @@ if(result.success&&result.warm_start_package)warmCache.set(warmKeyFromControls()
 $('cancel').onclick=()=>{if(activeController){activeController.abort();$('status').textContent='Request cancelled in browser; server computation may continue until completion.'}};
 $('forward').onclick=async()=>{const btn=$('forward');btn.disabled=true;$('forwardstatus').textContent='Calculating reference forward response…';try{const root=document.querySelector('.sample');const file=root?.querySelector('.file').files[0];const ref=$('reference').files[0];if(!file||!ref)throw Error('Upload Sample 1 R/T spectrum and reference n,k CSV');const form=new FormData();form.append('spectrum',file);form.append('reference',ref);form.append('configuration',JSON.stringify(await config(root)));const response=await fetch('/api/multilayer/forward-validation',{method:'POST',body:form});const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Forward validation failed');const traces=[];for(const key of ['R','T']){traces.push({x:data.wavelength_nm,y:data[key+'_predicted'],name:key+' reference forward',mode:'lines'});if(data[key+'_measured'])traces.push({x:data.wavelength_nm,y:data[key+'_measured'],name:key+' uploaded',mode:'markers',marker:{size:3}})}plot('forwardplot',traces,{title:'Reference RI forward prediction vs uploaded R/T',xaxis:{title:'Wavelength (nm)'},yaxis:{title:'R, T',range:[0,1]}});plot('forwardresidual',['R','T'].filter(k=>data[k+'_residual']).map(k=>({x:data.wavelength_nm,y:data[k+'_residual'],name:k+' predicted − measured',mode:'lines'})),{title:'Forward residuals',xaxis:{title:'Wavelength (nm)'},yaxis:{title:'Absolute R/T residual'}});$('forwardmetrics').textContent=JSON.stringify({rmse_R:data.rmse_R,rmse_T:data.rmse_T,rmse_combined:data.rmse_combined,note:data.note},null,2);$('forwardstatus').textContent='Reference forward calculation complete'}catch(err){$('forwardstatus').textContent='Error: '+err.message}finally{btn.disabled=false}};
 $('export').onclick=()=>{if(!last)return;const rows=['wavelength_nm,n,k,epsilon_real,epsilon_imag,alpha_per_cm,absorption_length_nm,group_index',...last.wavelength_nm.map((w,i)=>{const n=last.n[i],k=last.k[i],a=4*Math.PI*k/(w*1e-7),j=Math.max(0,i-1),q=Math.min(last.n.length-1,i+1);return [w,n,k,n*n-k*k,2*n*k,a,a>0?1e7/a:'',q===j?'':n-w*(last.n[q]-last.n[j])/(last.wavelength_nm[q]-last.wavelength_nm[j])].join(',')})];const url=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download='multilayer_recovered_nk.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+
+function v2Update(){
+ const roots=[...document.querySelectorAll('#samples>.sample')];
+ const selector=document.getElementById('stackSample');
+ const old=selector.value;
+ selector.replaceChildren();
+ roots.forEach(root=>{let option=document.createElement('option');option.value=root.dataset.id;option.textContent='Sample '+root.dataset.id;selector.append(option)});
+ if(roots.some(root=>root.dataset.id===old))selector.value=old;
+ const root=roots.find(root=>root.dataset.id===selector.value)||roots[0];
+ if(!root)return;
+ const rows=[...root.querySelectorAll('.layers tr')];
+ const known=pos=>rows.filter(tr=>tr.dataset.pos===pos).map(tr=>({name:'Known '+pos,thickness:tr.querySelector('.d').value,field:tr.querySelector('.d')}));
+ const layers=[{name:'Ambient',thickness:'semi-infinite',field:root.querySelector('.ambient')},...known('before'),{name:'Unknown film',thickness:root.querySelector('.thickness').value+' nm',field:root.querySelector('.thickness')},...known('after'),{name:'Substrate',thickness:root.querySelector('.subd').value||'semi-infinite',field:root.querySelector('.substrate')}];
+ let markup='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 '+(layers.length*64+42)+'" width="900"><rect width="900" height="100%" fill="#0c1424"/>';
+ layers.forEach((layer,i)=>{const y=20+i*64;markup+='<g data-index="'+i+'" role="button" tabindex="0"><rect x="10" y="'+y+'" width="880" height="58" rx="5" fill="'+(layer.name==='Unknown film'?'#276e9b':'#435d7c')+'"/><text x="25" y="'+(y+35)+'" fill="white" font-size="20">'+layer.name+'</text><text x="860" y="'+(y+35)+'" text-anchor="end" fill="white" font-size="17">'+layer.thickness+'</text></g>'});
+ markup+='</svg>';
+ document.getElementById('stackCanvas').innerHTML=markup;
+ document.getElementById('stackInfo').textContent='Schematic not to scale. Click a layer to edit its existing parameters.';
+ document.getElementById('stackCanvas').querySelectorAll('[data-index]').forEach(el=>{el.onclick=()=>{root.querySelector('.sampleBody').hidden=false;const field=layers[Number(el.dataset.index)].field;field.focus();field.scrollIntoView({block:'center',behavior:'smooth'})}});
+}
+document.getElementById('stackSample').onchange=v2Update;
+document.getElementById('samples').addEventListener('input',v2Update);
+document.getElementById('samples').addEventListener('change',v2Update);
+document.getElementById('exportStackSVG').onclick=()=>{const source=document.querySelector('#stackCanvas svg');if(!source)return;const url=URL.createObjectURL(new Blob([source.outerHTML],{type:'image/svg+xml'}));const link=document.createElement('a');link.href=url;link.download='optical-stack.svg';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+v2Update();
 </script><footer class="ocl-license">© 2026 Optical Constants Laboratory contributors. Free for educational and independent non-commercial research. Commercial use requires written permission. <a href="https://github.com/KofiOsae/optical-constants-lab/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License and conditions</a> · Third-party rights reserved.</footer><style>.ocl-license{padding:12px 20px;background:#101e32;color:#b8c8da;font:12px/1.6 system-ui,Arial;border-top:1px solid #34465e;text-align:center}.ocl-license a{color:#91caff}</style></html>
