@@ -1,3 +1,11 @@
+## Classical Tauc versus Tauc–Lorentz — choose the correct tool
+
+**Classical · Tauc optical gap** is a post-processing band-edge estimate based on a Tauc plot derived from absorption (often approximated from transmission). It does **not** reconstruct a causal complex refractive index and does not replace coherent-film R/T modeling. Its gap estimate depends on the assumed transition exponent and selected approximately linear energy range; interference, scattering and substrate contributions can bias it.
+
+**Tauc–Lorentz (amorphous absorption edge)** is a parametric dielectric dispersion model fitted to R/T with the optical stack. It returns n(λ), k(λ), and model parameters ε∞, A, Eg, E0−Eg and broadening C. It is available for Single, Joint, and Multilayer; use **one oscillator** for the supplied 180/300 nm benchmark with Eg=1.50 eV, A=18, E0−Eg=1.20 eV, C=0.32 eV, ε∞=2.35. In Single use Extraction method → Tauc–Lorentz; in Joint use Joint fitting method → Tauc–Lorentz; in Multilayer use Dispersion model → Tauc–Lorentz. If the Joint dropdown does not show it, that is an interface issue, not a reason to select Classical Tauc.
+
+Both tools estimate a quantity called an optical gap, but their assumptions and inverse problems are different. Their estimates need not agree, particularly with limited spectral coverage, indirect absorption proxies or strongly correlated thickness/dispersion parameters. The numerical TL KK real part uses finite-range quadrature and requires independent reference verification.
+
 # Optical Constants Laboratory — Theory and Guided Tests
 
 ## 1. Scope and status
