@@ -28,3 +28,11 @@ def test_v2_synthetic_examples_match_forward_model():
         assert np.all(a["R"]+a["T"]<=1+1e-7)
         if not absorbing:
             assert np.max(np.abs(a["R"]+a["T"]-1))<1e-7
+
+def test_v2_multilayer_cap_example():
+    a=np.genfromtxt(ROOT/"multilayer_cap50_film150.csv",delimiter=",",names=True)
+    w=a["wavelength_nm"]
+    R,T=coherent_stack(w,[(1.8,50.),(1.65,150.)],substrate_n=1.46)
+    assert np.max(np.abs(R-a["R"]))<1e-7
+    assert np.max(np.abs(T-a["T"]))<1e-7
+    assert np.max(np.abs(a["R"]+a["T"]-1))<1e-7
