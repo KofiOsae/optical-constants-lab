@@ -5,6 +5,8 @@ Outputs RT CSV and known n,k reference CSV; the latter is reference model truth,
 not independently measured values. Intended for v2 inverse-recovery experiments.
 """
 from pathlib import Path
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import numpy as np
 from organic_dispersion import organic_nk
 from multilayer_forward import coherent_stack
