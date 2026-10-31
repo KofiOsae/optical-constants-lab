@@ -254,6 +254,8 @@ def joint_fit_api():
                 raise ValueError('Finite substrate thickness must be positive')
             spec.backing_n=float(c.get('backing_n',1.))
             if not np.isfinite(spec.backing_n) or spec.backing_n<=0:raise ValueError('Backing index must be positive')
+            spec.ambient_n=float(c.get('ambient_n',1.))
+            if not np.isfinite(spec.ambient_n) or spec.ambient_n<=0:raise ValueError('Ambient refractive index must be finite and positive')
             spec.angle_deg=float(c.get('angle_deg',0))
             spec.roughness_nm=float(c.get('roughness_nm',0))
             if not np.isfinite(spec.roughness_nm) or not 0<=spec.roughness_nm<=100:raise ValueError('Effective mixing thickness must be between 0 and 100 nm')
