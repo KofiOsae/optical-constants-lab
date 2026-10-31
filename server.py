@@ -303,7 +303,7 @@ def joint_fit_api():
             fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',
             mixing_bounds=(float(request.form.get('mixing_min_nm',0)),float(request.form.get('mixing_max_nm',10))))
         method=request.form.get('joint_method','two_stage')
-        if method not in ('two_stage','direct','lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','cauchy','sellmeier'): raise ValueError('Unknown joint method')
+        if method not in ('two_stage','direct','lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','tauc_lorentz','cauchy','sellmeier'): raise ValueError('Unknown joint method')
         # A single spectrum may be absorbing and can use any supported model.
         # Low-dimensional data may not uniquely identify n, k, and thickness.
         holdout=int(request.form.get('holdout_index','-1'))
@@ -325,7 +325,7 @@ def joint_fit_api():
             fingerprint.update(str(spec.polarization).encode('utf-8'))
         training_fingerprint=fingerprint.hexdigest()
 
-        if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic'):
+        if method in ('lorentz','drude_lorentz','modified_lorentz','kk_gaussian','voigt','vibronic','tauc_lorentz'):
             from scientific_diagnostics import fit_causal
             outcome=fit_causal(training,method,int(request.form.get('oscillators',1)),budget,settings.fit_thickness,multistart=int(request.form.get('causal_starts','1')),warm_start=(json.loads(request.form['causal_warm_start']) if request.form.get('causal_warm_start') else None),parameter_controls=(json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None),
                 fit_interface_mixing=settings.fit_interface_mixing,interface_mixing_bounds=settings.mixing_bounds)
