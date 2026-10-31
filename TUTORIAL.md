@@ -1,7 +1,7 @@
 # Optical Constants Laboratory — Theory and Guided Tests
 
 ## 1. Scope and status
-This prototype provides a coherent single-film Fresnel forward model and a regularized B-spline inverse model for four synthetic R6G cases. The supplied R6G optical constants are a reference *for numerical recovery*, not independent experimental truth. The following methods are **not implemented** in this version: original Swanepoel envelope extraction, causal Lorentz/KK inversion, measurement-file upload, calibrated uncertainty intervals, and automated measurement design.
+This tutorial originated with the early single-film prototype. The laboratory has since expanded to Single, Joint and Multilayer workflows, measured-data upload, causal dispersion fits, and finite-band KK/SSKK diagnostics. Read each method's current UI and validation notes for availability; some traditional methods and full calibration/uncertainty claims remain out of scope. Synthetic examples are forward-model demonstrations, not independent experimental ground truth.
 
 ## 2. Definitions and sign convention
 Use the time convention exp(-i omega t) and complex index N=n+ik with k>=0 for passive materials. The absorption coefficient is alpha=4 pi k/lambda. Single-pass intensity attenuation is exp(-alpha d), which is not the full thin-film transmittance because it neglects interfaces and interference.
@@ -238,3 +238,8 @@ Upload 500 nm and 1000 nm reflectance/transmittance spectra; use the exact incid
 ### Workspace operations
 
 The Multilayer workspace supports **bulk spectra selection** that creates or populates sample entries (filenames containing a thickness such as `500nm` propose nominal thickness), sample collapse/expand, separately scrollable columns with adjustable widths, and portable JSON project export/import including uploaded CSV contents, layer configuration and latest results. Project files may contain proprietary spectra; handle them accordingly. After reloading a project, review all experimental geometry and numerical settings before refitting. Browsers require the user to explicitly select a saved project for import; files are not automatically uploaded to an external account.
+
+
+## V2 guided examples and laboratory-wide presentation policy
+
+Three transparent/absorbing synthetic forward-model CSV exercises, their source equations, use instructions, and test criteria are available at [examples/v2/README.md](examples/v2/README.md). Open **Guided example datasets · v2** in the application to download data. These are unmeasured synthetic spectra and must never be presented as literature spectra. Follow the sample-geometry → preview → model selection → constrained inversion → R/T and n,k validation → publication path described above. Separate visual components should be collapsible; Plotly scientific plots and recovered data receive priority in the layout. Export panels are optional; avoid duplicated settings across Single/Joint/Multilayer. No changes to the published v1.0.0 tag are implied by v2 development.
