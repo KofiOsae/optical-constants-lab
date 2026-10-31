@@ -24,4 +24,5 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_material_csv.py' -v
       - run: python -m unittest discover -s tests -p 'test_multilayer.py' -v
       - run: python -m unittest discover -s tests -p 'test_lorentz_forward.py' -v
+      - run: python examples/v2/generate_tauc_lorentz.py
       - run: python -m pytest -q tests/test_v2_examples.py tests/test_tauc_lorentz_v2.py
