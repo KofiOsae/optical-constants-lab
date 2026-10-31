@@ -29,3 +29,12 @@ Record: environment and deployed commit, source CSV, layer order, substrate assu
 
 ## Release gate
 Do not merge to production or tag v2.0.0 before: (1) CI passes; (2) browser tests pass in all three workflows; (3) each example is reproducible; (4) all fit/forward-model limitations are documented; (5) published figures and TXT/PDF/JSON contain honest version and provenance metadata.
+
+## Additional numerical validation (Tauc–Lorentz)
+- Run `pytest -q tests/test_v2_tl_inverse_recovery.py tests/test_v2_validation_comparisons.py`.
+- Full-band 180/300 nm joint synthetic spectrum: compare known parameters to fitted parameters, reconstructed n,k and predicted R/T. The numerical regression currently initializes at the true parameters to establish forward/inverse consistency; it is **not** a blind parameter-identification benchmark.
+- Reduced-band 450–690 nm: the absorption onset at about 827 nm lies outside the fitting window. A low residual must not be interpreted as independent Eg recovery.
+- Multi-start: use several initial guesses, record all independent fit endpoints and compare parameter spread and n,k spread. Per-fit optimizer start records already exist in the Single/Joint causal engine and Multilayer solver; the new Reliability tab reports them when available.
+- Wavelength-window and thickness sensitivities: repeated fits must be executed and compared with the `validation_comparisons_v2.py` helpers. They are **not** performed automatically by opening the summary panel.
+- Held-out: only a measurement omitted from fitting, initialization, and tuning counts. Use Joint holdout control; report its measured-vs-predicted R/T RMSE.
+- Release requires an additional blind-initialization recovery benchmark and a separate analytical Tauc–Lorentz reference comparison; internally generated n,k is not external scientific validation.
