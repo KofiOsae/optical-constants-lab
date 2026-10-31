@@ -9,7 +9,7 @@ function init(){
  const open=document.createElement('button');open.type='button';open.id='ocl-saveplot';open.textContent='Save a plot';
  const dialog=document.createElement('dialog');dialog.id='ocl-saveplot-dialog';
  dialog.innerHTML='<h2>Save Plotly figure</h2><p>Choose any visible scientific plot. The existing interactive display, hover values, axes and numerical solver remain unchanged.</p><label>Plot <select id="ocl-plot-select"></select></label><p><button type="button" id="ocl-save-svg">Save SVG (vector)</button><button type="button" id="ocl-save-png">Save PNG (3000 px wide)</button><button type="button" id="ocl-save-csv">Save plotted data CSV</button><button type="button" id="ocl-save-close">Close</button></p><p id="ocl-save-status" aria-live="polite"></p>';
- document.body.append(open,dialog);if(window.self!==window.top){open.hidden=true;open.style.display='none';}
+ document.body.append(open,dialog);if(window.self===window.top&&document.getElementById('workflow')){const wf=document.getElementById('workflow');const sync=()=>{open.hidden=wf.value==='multilayer';open.style.display=wf.value==='multilayer'?'none':''};wf.addEventListener('change',sync);sync();}
  const get=id=>document.getElementById(id);
  const status=msg=>get('ocl-save-status').textContent=msg;
  const plots=()=>[...document.querySelectorAll('.js-plotly-plot')].filter(p=>p.id&&Array.isArray(p.data)&&p.data.length&&p.getClientRects().length&&p.offsetWidth>0);
