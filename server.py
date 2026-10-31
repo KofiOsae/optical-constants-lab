@@ -241,8 +241,13 @@ def joint_fit_api():
                 raise ValueError('Each configuration must be an object')
             spec=parse_spectrum(upload.filename,upload.read(),c.get('thickness_nm',1000),
                 c.get('substrate_n',1.5),c.get('wavelength_unit','auto'),c.get('signal_unit','auto'))
-            spec.substrate_n=complex(float(c.get('substrate_n',1.5)),float(c.get('substrate_k',0)))
-            if not np.isfinite(spec.substrate_n.real) or not np.isfinite(spec.substrate_n.imag) or spec.substrate_n.real<=0 or spec.substrate_n.imag<0:
+            table=c.get('substrate_ri')
+            if table is not None:
+                from multilayer_api import substrate_index
+                spec.substrate_n=substrate_index(c,spec.wavelength_nm)
+            else:
+                spec.substrate_n=complex(float(c.get('substrate_n',1.5)),float(c.get('substrate_k',0)))
+            if not np.all(np.isfinite(np.real(spec.substrate_n))) or not np.all(np.isfinite(np.imag(spec.substrate_n))) or np.any(np.real(spec.substrate_n)<=0) or np.any(np.imag(spec.substrate_n)<0):
                 raise ValueError('Substrate n must be positive and k nonnegative')
             spec.substrate_thickness_nm=float(c['substrate_thickness_nm']) if c.get('substrate_thickness_nm') not in (None,'') else None
             if spec.substrate_thickness_nm is not None and (not np.isfinite(spec.substrate_thickness_nm) or spec.substrate_thickness_nm<=0):
