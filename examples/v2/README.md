@@ -8,7 +8,7 @@
 
 **Test C — Spectrally absorbing film (180 nm):** [CSV](absorbing_film_180nm.csv). Film thickness 180 nm. Synthetic optical constants: n(λ)=1.73+0.12(550/λ−1); k(λ)=0.07 exp[−0.5((λ−610)/60)^2], λ in nm. Guide: choose Single Spectrum with a flexible dispersion model or a suitable causal representation, set thickness 180 nm, substrate 1.46, no mixing/no noise initially. Since this demonstration uses a descriptive n,k function rather than a globally causal material model, **do not treat it as a KK/SSKK causality benchmark**. Evaluate R/T reconstruction and fit residuals. A particular causal fit cannot be guaranteed to exactly recover this deliberately noncausal toy dispersion.
 
-## Model-selection flow, practical checklist
+**Test D — Known capping layer plus unknown film:** [CSV](multilayer_cap50_film150.csv). Air / known cap n=1.80, 50 nm / unknown film n=1.65, k=0, 150 nm / substrate n=1.46. Choose Multilayer → upload CSV → nominal unknown film thickness 150 nm → Add known layer **before** the unknown film, n=1.80, k=0, d=50 nm → transparent Cauchy or Sellmeier model → fixed thickness/mixing=0/noise=0. Check exact sample order using the stack diagram before fitting; inspect R/T residual and recovered n,k. This is an example of why layer ordering must be correct, not a guarantee of unique inversion.\n\n## Model-selection flow, practical checklist
 1. Define geometry: air/film/substrate, wavelength units, substrate n,k, known thicknesses.
 2. Confirm spectral content and physical ranges in preview, R≥0, T≥0, passive energy balance.
 3. Transparent sample → Cauchy/Sellmeier. Absorbing film → causal oscillator fit if physically motivated, otherwise flexible spline as exploratory fit.
