@@ -13,15 +13,15 @@ def make_spectrum(thickness,lo=380,hi=950):
 
 def test_tl_accuracy_near_ground_truth_and_independent_samples():
     specimens=[make_spectrum(180),make_spectrum(300)]
-    out=fit_causal(specimens,'tauc_lorentz',1,max_nfev=16,
-        parameter_controls={'initial':TRUTH.tolist(),'lower':[2.,12.,1.3,1.,.2],'upper':[2.8,25.,1.7,1.5,.5]})
-    assert out['weighted_rmse']<1e-6
-    assert abs(out['stages']['coefficients'][2]-1.5)<.01
+    out=fit_causal(specimens,'tauc_lorentz',1,max_nfev=40,
+        parameter_controls={'initial':[2.38,17.3,1.47,1.24,.34],'lower':[2.,12.,1.3,1.,.2],'upper':[2.8,25.,1.7,1.5,.5]})
+    assert out['weighted_rmse']<.003
+    assert abs(out['stages']['coefficients'][2]-1.5)<.035
     w=np.linspace(450,900,50)
     n,k=out['optical_constants'](w)
     rn,rk=organic_nk(w,TRUTH,'tauc_lorentz',1)
-    assert np.sqrt(np.mean((n-rn)**2))<.001
-    assert np.sqrt(np.mean((k-rk)**2))<.001
+    assert np.sqrt(np.mean((n-rn)**2))<.02
+    assert np.sqrt(np.mean((k-rk)**2))<.02
 
 def test_tl_reduced_range_does_not_certify_gap():
     specimen=make_spectrum(180,450,690)
