@@ -1,0 +1,22 @@
+name: Multilayer multistart regression
+on:
+  push:
+    branches: [fix/multilayer-multistart-controls-20261101]
+  pull_request:
+    paths:
+      - multilayer_dispersion.py
+      - multilayer_api.py
+      - web/multilayer.html
+      - tests/test_multilayer_multistart_regression.py
+      - .github/workflows/multilayer-regression.yml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_multilayer_multistart_regression.py
