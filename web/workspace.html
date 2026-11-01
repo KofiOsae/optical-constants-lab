@@ -311,6 +311,39 @@ function oclJointOpticalSummary(d){
  for(const i of indices){const row=document.createElement('tr');for(const x of [w[i],n[i],k[i]]){const cell=document.createElement('td');cell.textContent=Number(x).toPrecision(8);row.append(cell)}t.append(row)}
  panel.querySelector('#ocl-joint-nk-table').replaceChildren(t);
 }
+function oclRenderKK(){
+ const ctl=document.getElementById('ocl-kk-control'),mode=document.getElementById('ocl-kk-method')?.value;
+ const target=document.getElementById('ocl-kk-plot'),note=document.getElementById('ocl-kk-note');
+ if(!target||!note)return;
+ if(!ctl.open||mode==='none'){target.style.display='none';return}
+ const d=result||jointResult;
+ if(!d?.wavelength_nm||!d?.n||!d?.k||d.n.length<8){target.style.display='none';note.textContent='Run a fitted optical-constants model with at least eight wavelengths first.';return}
+ const entries=d.wavelength_nm.map((w,i)=>({E:1239.841984/Number(w),n:Number(d.n[i]),k:Number(d.k[i]),w:Number(w)})).filter(z=>z.E>0&&Number.isFinite(z.n)&&Number.isFinite(z.k)).sort((a,b)=>a.E-b.E);
+ if(entries.length<8){note.textContent='Insufficient valid optical constants.';target.style.display='none';return}
+ const N=entries.length, E=entries.map(z=>z.E), eps1=entries.map(z=>z.n*z.n-z.k*z.k),eps2=entries.map(z=>2*z.n*z.k);
+ const integration=E.map((ei,i)=>{
+  let sum=0;
+  for(let j=0;j<N-1;j++){
+   // Principal-value subtraction avoids the removable pole in the discrete integral.
+   const a=j,b=j+1,calc=t=>{
+    if(t===i)return 0;
+    const den=E[t]*E[t]-ei*ei;
+    return Math.abs(den)<1e-12?0:(E[t]*eps2[t]-ei*eps2[i])/den;
+   };
+   sum+=(E[b]-E[a])*(calc(a)+calc(b))/2;
+  }
+  const low=Math.max(Math.abs(E[0]*E[0]-ei*ei),1e-20),high=Math.max(Math.abs(E[N-1]*E[N-1]-ei*ei),1e-20);
+  return 2/Math.PI*(sum+.5*eps2[i]*Math.log(high/low));
+ });
+ const anchor=Number(document.getElementById('ocl-kk-anchor').value),idx=entries.reduce((best,z,i)=>Math.abs(z.w-anchor)<Math.abs(entries[best].w-anchor)?i:best,0);
+ const baseline=mode==='sskk'?eps1[idx]-integration[idx]:0;
+ const calculated=integration.map(v=>v+baseline);
+ const deviation=Math.sqrt(calculated.reduce((a,v,i)=>a+(v-eps1[i])**2,0)/N);
+ const traces=[{x:entries.map(z=>z.w),y:eps1,name:'ε₁ fitted'},{x:entries.map(z=>z.w),y:calculated,name:mode.toUpperCase()+' finite-band estimate',line:{dash:'dash'}}];
+ target.style.display='block';
+ plot('ocl-kk-plot',traces,mode.toUpperCase()+' · dielectric consistency (finite-band)');
+ note.textContent='Finite-band RMSE(ε₁): '+deviation.toPrecision(5)+(mode==='sskk'?'; fitted anchor at '+entries[idx].w.toFixed(1)+' nm':'')+'. Boundary truncation and unmeasured tails limit interpretation; this is not a causality certification.';
+}
 function renderProperty(){
  document.dispatchEvent(new Event('ocl-fit-complete'));renderFittedParameters();
  const d=result||jointResult;
@@ -355,6 +388,7 @@ function renderProperty(){
  plot('result_plot',traces,title);
  if(window.Plotly)requestAnimationFrame(()=>{for(const id of ['result_plot','fit_plot']){const el=$(id);if(el&&el.offsetParent&&el.data)Plotly.Plots.resize(el)}});
  updateReferenceComparison();
+ oclRenderKK();
 }
 function renderFit(){
  const traces=[],channels=$('plot_channels').value==='RT'?['R','T']:[$('plot_channels').value];
@@ -429,7 +463,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     note.textContent='Independent reference n,k may be loaded before fitting. It is an overlay, not a fit constraint.';
     refPanel.insertBefore(note,refPanel.children[1]||null);
   }
-  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
+  // Shared finite-band diagnostic view for Single and Joint. Not a fitted KK constraint.
+ const kkHost=document.getElementById('single_settings');
+ if(kkHost&&!document.getElementById('ocl-kk-control')){
+  const details=document.createElement('details');details.id='ocl-kk-control';
+  details.innerHTML='<summary>Advanced · KK / SSKK dielectric diagnostics</summary><p class="note">Finite-band consistency comparison only; missing outside-band absorption can bias the reconstructed real dielectric function. SSKK anchors the offset to a fitted ε₁ value, not an independent measurement.</p><label>Diagnostic <select id="ocl-kk-method"><option value="none">Off</option><option value="kk">KK · finite spectral band</option><option value="sskk">SSKK · anchored finite band</option></select></label><label>SSKK anchor wavelength (nm) <input id="ocl-kk-anchor" type="number" min="1" value="700" step="1"></label><div id="ocl-kk-plot" class="plot" style="height:310px;display:none"></div><p id="ocl-kk-note" class="note"></p>';
+  kkHost.append(details);
+  details.querySelector('select').addEventListener('change',oclRenderKK);
+  details.querySelector('input').addEventListener('change',oclRenderKK);
+  details.addEventListener('toggle',()=>{if(details.open)oclRenderKK()});
+ }
+ const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
  const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
  wrap('single_settings','Single spectrum · model and sample settings');
