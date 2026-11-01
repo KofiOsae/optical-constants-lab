@@ -385,6 +385,13 @@ function renderProperty(){
    traces.push({x:referenceRI.w,y:referenceRI.k,name:'k reference',line:{dash:'dash'}})}
   title='Complex refractive index';
  }
+ // Keep every displayed optical-property trace within the fitted/measured spectral domain.
+ // A reference is an independent observation and must never be extrapolated.
+ const lower=Math.min(...w),upper=Math.max(...w);
+ traces=traces.map(trace=>{
+  const indices=trace.x.map((x,i)=>Number(x)>=lower&&Number(x)<=upper?i:-1).filter(i=>i>=0);
+  return {...trace,x:indices.map(i=>trace.x[i]),y:indices.map(i=>trace.y[i])};
+ });
  plot('result_plot',traces,title);
  if(window.Plotly)requestAnimationFrame(()=>{for(const id of ['result_plot','fit_plot']){const el=$(id);if(el&&el.offsetParent&&el.data)Plotly.Plots.resize(el)}});
  updateReferenceComparison();
