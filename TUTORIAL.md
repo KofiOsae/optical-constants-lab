@@ -260,3 +260,23 @@ The **Tauc–Lorentz** option is available in Single, Joint, and Multilayer, usi
 The compact **Scientific validation · v2** section has four tabs: Fit quality, Reliability, Physics, and Prediction. It summarizes existing fit errors, Jacobian SVD diagnostics where provided, passivity/energy-budget checks, and explicitly reports when held-out validation or multistart evidence is not present. Displaying a tab does not imply an independent validation was performed. The Jellison–Modine form was introduced in *Applied Physics Letters* (1996), and external analytic-reference comparison remains required before v2 acceptance.
 
 For a synthetic TL exercise, run `python examples/v2/generate_tauc_lorentz.py` from the repository root. It generates R/T and reference n,k CSV files for 180 nm film on n=1.46 substrate, with `[epsilon_inf,A,Eg,E0−Eg,C]=[2.35,18,1.50,1.20,0.32]` (energies eV). Upload R/T in Single and select Tauc–Lorentz, 1 oscillator, nominal thickness 180 nm, substrate 1.46, noise 0, mixing 0. Compare recovered n,k and Eg to the generated reference, then attempt Joint/Multilayer fits with a separately generated thickness sample. These synthetic data are generated using the laboratory's own implementation and do not constitute independent verification of the TL formula.
+
+
+## V2 parity and publication workflow (November 2026)
+
+### Experimental geometry
+The **ambient** medium is the half-space from which light is incident (typically air, n=1). A **backing** medium exists beyond an explicitly finite coherent substrate, typically air. It is not the substrate itself and does not affect a semi-infinite substrate model. The laboratory does not automatically include incoherent backside reflections of optically thick substrates; do not interpret a fitted effective mixing thickness as RMS roughness.
+
+### Standard analysis flow
+1. Choose Single, Joint or Multilayer; upload R/T spectra. A unique thickness token in the filename (e.g. `film_150nm_TE.csv` or `film_0.15um_TE.csv`) seeds nominal thickness; confirm it against sample records. Explicitly set wavelength and signal units and substrate/ambient conditions.
+2. Inspect and validate the raw spectra. Select a physical dispersion model, initial parameters, bounds and noise assumptions. If useful, fit an informative **short- or long-wavelength band first**, inspect the recovered dispersion, and extend to the full domain; warm parameter transfer is model-dependent and must not be assumed for every method.
+3. Fit and compare extracted n,k with reconstructed R,T for each input sample. Joint analysis uses shared optical constants with independent sample geometries. A held-out sample must not enter parameter fitting or tuning.
+4. Use the **one active optical-property plot** to select n,k, dielectric ε1/ε2, absorption coefficient, absorption length and group index; any uploaded reference optical constants are independent overlays and not an inversion constraint. Derivatives in n_g are sensitive to noise and near resonances.
+5. Review residuals, convergence, alternative multistart solutions, Jacobian conditioning, fit history, and finite-band KK/SSKK where applicable. KK/SSKK diagnostics do **not** prove a material model is causal merely because an overlay is close.
+6. Export the original input project, reconstructed spectra, optical-property CSV and publication figures. A fitted **Lorentz or Drude–Lorentz** model can additionally produce a formula-based Excel parameter workbook; other families require additional model-specific reconstruction before any such workbook can be claimed. The workbook recalculates when opened in a spreadsheet application; predicted R/T also requires the correct stack and substrate.
+
+### Reproducible teaching and release tests
+Use `examples/v2/ACCEPTANCE_CHECKLIST.md` with the transparent single (120 nm), joint (120/240 nm), absorbing (180 nm) and capped multilayer (50 nm/150 nm) examples. Verify (R+T\approx 1) only for passive lossless structures, and distinguish a low R/T residual from unique parameter recovery. The example files are synthetic; neither these examples nor an optimizer's success status constitute independent experimental validation.
+
+### Save plot
+**Save plot** exports the **currently selected view** (including displayed overlays, axis labels, legends and units), as an image suitable for reports. It does not refit the model or save a complete project. Use Save project and numerical CSV for independently reusable data and parameters.
