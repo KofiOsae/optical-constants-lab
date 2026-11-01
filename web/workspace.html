@@ -419,7 +419,17 @@ byId('v2JointSample').onchange=refresh;byId('workflow').addEventListener('change
 </script><script src="/figure-studio.js" defer></script><script src="/reproducibility.js" defer></script></body><script src="/guided-examples.js" defer></script><script>document.addEventListener('DOMContentLoaded',()=>{const target=document.getElementById('metrics');if(target&&!document.getElementById('ocl-fitted-parameters')){const box=document.createElement('section');box.id='ocl-fitted-parameters';box.hidden=true;box.style.cssText='margin:10px 0;padding:10px;border:1px solid #475569;border-radius:8px';target.after(box)}})</script><script>
 document.addEventListener('DOMContentLoaded',()=>{
  const header=document.querySelector('body > header');if(header){const update=()=>document.documentElement.style.setProperty('--ocl-header-height',header.getBoundingClientRect().height+'px');update();if(window.ResizeObserver)new ResizeObserver(update).observe(header)}
- const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
+ // Keep reference optical constants available before running any fit.
+  const refPanel=document.getElementById('reference_ri_file')?.closest('.panel');
+  const settings=document.getElementById('single_settings');
+  if(refPanel&&settings){
+    refPanel.id='ocl-reference-inputs';
+    settings.insertAdjacentElement('afterend',refPanel);
+    const note=document.createElement('p');note.className='note';
+    note.textContent='Independent reference n,k may be loaded before fitting. It is an overlay, not a fit constraint.';
+    refPanel.insertBefore(note,refPanel.children[1]||null);
+  }
+  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
  const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
  wrap('single_settings','Single spectrum · model and sample settings');
