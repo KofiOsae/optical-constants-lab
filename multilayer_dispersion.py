@@ -12,7 +12,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None, fit_interface_mixing=False, interface_mixing_bounds=(0.,10.)):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None, fit_interface_mixing=False, interface_mixing_bounds=(0.,10.), n_starts=None, random_seed=2026):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained',*MODEL_PARAMETER_COUNTS):
         raise ValueError('Unsupported dispersion model')
@@ -176,6 +176,8 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
     if not np.all((x>=lo)&(x<=hi)):raise ValueError('Initial parameters outside bounds')
     # Deterministic metal-aware multistart. The same objective and bounds are
     # used for every start; select by data+regularization residual norm.
+    if n_starts is not None and (not isinstance(n_starts,int) or not 1<=n_starts<=20):
+        raise ValueError('Multistart count must be between 1 and 20')
     starts=[x]
     if model=='spline':
         for n_seed,k_seed in ((.5,2.),(1.,3.),(2.,2.5)):
@@ -188,6 +190,16 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         trial[1]=min(5.,hi[1]*.5)
         trial[2]=.15
         starts.append(trial)
+    # Keep the historical deterministic seeds by default. When an explicit
+    # count is supplied, use exactly that many local solves, with reproducible
+    # bounded perturbations of the selected initialization for extra starts.
+    if n_starts is not None:
+        starts=starts[:n_starts]
+        rng=np.random.default_rng(random_seed)
+        while len(starts)<n_starts:
+            span=np.asarray(hi)-np.asarray(lo)
+            trial=x+rng.normal(0.,.12,len(x))*span
+            starts.append(np.clip(trial,lo+1e-8,hi-1e-8))
     fits=[]
     for seed in starts:
         candidate=least_squares(residual,seed,bounds=(lo,hi),
