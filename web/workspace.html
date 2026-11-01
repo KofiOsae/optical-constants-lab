@@ -353,7 +353,7 @@ byId('v2JointSample').onchange=refresh;byId('workflow').addEventListener('change
 document.addEventListener('DOMContentLoaded',()=>{
  const header=document.querySelector('body > header');if(header){const update=()=>document.documentElement.style.setProperty('--ocl-header-height',header.getBoundingClientRect().height+'px');update();if(window.ResizeObserver)new ResizeObserver(update).observe(header)}
  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
- const jj=document.getElementById('joint_settings');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
+ const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
  wrap('single_settings','Single spectrum · model and sample settings');
  wrap('joint_settings','Joint spectrum · model and sample settings');
