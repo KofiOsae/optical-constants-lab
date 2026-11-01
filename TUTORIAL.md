@@ -280,3 +280,29 @@ Use `examples/v2/ACCEPTANCE_CHECKLIST.md` with the transparent single (120 nm), 
 
 ### Save plot
 **Save plot** exports the **currently selected view** (including displayed overlays, axis labels, legends and units), as an image suitable for reports. It does not refit the model or save a complete project. Use Save project and numerical CSV for independently reusable data and parameters.
+
+### End-to-end decision flowchart
+
+```mermaid
+flowchart TD
+    A[Upload R/T data and inspect wavelength / signal units] --> B[Confirm ambient, film thickness and substrate model]
+    B --> C{How many specimens / layers?}
+    C -->|One film| D[Single Spectrum]
+    C -->|Shared material in multiple specimens| E[Joint Spectrum]
+    C -->|Known-layer stack| F[Multilayer]
+    D --> G[Choose dispersion model and parameter bounds]
+    E --> G
+    F --> G
+    G --> H{Informative initial wavelength band?}
+    H -->|Yes| I[Progressive Stage 1 then extend]
+    H -->|No| J[Fit selected range]
+    I --> K[Inspect n/k, reconstructed R/T and residuals]
+    J --> K
+    K --> L{Scientific checks acceptable?}
+    L -->|No| M[Review geometry, ambiguity, optimizer and model assumptions]
+    M --> G
+    L -->|Yes| N[Reference comparison, holdout and reproducibility]
+    N --> O[Export optical CSV, project, figures and applicable model workbook]
+```
+
+This chart describes the recommended scientific workflow, not a promise that every model supports exact parameter transfer or a formula-based external workbook. Inspect the interface for method-specific limitations.
