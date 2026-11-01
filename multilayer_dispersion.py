@@ -12,7 +12,7 @@ from multilayer_inverse import predict_stack
 
 def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
                           oscillators=1, fit_thickness=False,
-                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None, fit_interface_mixing=False, interface_mixing_bounds=(0.,10.)):
+                          thickness_bounds=None, max_nfev=250, optical_bounds=None, initial_parameters=None, initial_reference=None, parameter_controls=None, fit_interface_mixing=False, interface_mixing_bounds=(0.,10.), multistart_count=1):
     if not samples: raise ValueError('At least one sample is required')
     if model not in ('spline','lorentz','drude_lorentz','kk_constrained',*MODEL_PARAMETER_COUNTS):
         raise ValueError('Unsupported dispersion model')
@@ -188,6 +188,14 @@ def fit_dispersive_stacks(samples, model='spline', n_basis=8, smoothness=.01,
         trial[1]=min(5.,hi[1]*.5)
         trial[2]=.15
         starts.append(trial)
+    if not 1 <= int(multistart_count) <= 20: raise ValueError('Multistart count must be 1 through 20')
+    rng=np.random.default_rng(20261101)
+    while len(starts)<int(multistart_count):
+        trial=x.copy()
+        count=min(disp_count,len(trial))
+        trial[:count]=np.clip(x[:count]+rng.normal(0,.20,size=count)*(hi[:count]-lo[:count]),lo[:count]+1e-8,hi[:count]-1e-8)
+        starts.append(trial)
+    starts=starts[:int(multistart_count)]
     fits=[]
     for seed in starts:
         candidate=least_squares(residual,seed,bounds=(lo,hi),
