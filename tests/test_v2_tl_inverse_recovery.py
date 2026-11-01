@@ -32,3 +32,13 @@ def test_tl_reduced_range_does_not_certify_gap():
     assert out['weighted_rmse']<1e-6
     # Even an exact fit on a truncated range is not evidence of unique Eg.
     assert max(specimen.wavelength_nm)<1239.841984/TRUTH[2]
+
+
+def test_multilayer_tl_multistart_and_coefficients():
+    from multilayer_inverse import StackSpectrum
+    from multilayer_dispersion import fit_dispersive_stacks
+    base=make_spectrum(180)
+    stack=StackSpectrum(wavelength_nm=base.wavelength_nm,R=base.R,T=base.T,substrate_n=1.46)
+    out=fit_dispersive_stacks([(stack,180.)],model='tauc_lorentz',oscillators=1,max_nfev=10,multistart_count=2,parameter_controls={'initial':TRUTH.tolist(),'lower':[2.,12.,1.3,1.,.2],'upper':[2.8,25.,1.7,1.5,.5]})
+    assert len(out['dispersion_parameters'])==5
+    assert out['multistart']['attempts']==2
