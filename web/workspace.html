@@ -527,6 +527,28 @@ document.addEventListener('DOMContentLoaded',()=>{
   suitability.parentElement.insertBefore(pointer,suitability);
   tutorial.insertBefore(suitability,tutorial.children[1]||null);
  }
+ // One compact toolbar; laboratory help lives in Tutorial, not the fitting inputs.
+ const workflowTop=document.querySelector('#laboratory_main .top');
+ const journey=workflowTop?.querySelector('.note');
+ const heading=document.querySelector('header h1');
+ if(journey&&heading){journey.style.fontSize='12px';heading.insertAdjacentElement('afterend',journey)}
+ const side=document.querySelector('#single_joint_workspace .settings');
+ const save=document.getElementById('saveWorkspaceProject'),load=document.getElementById('loadWorkspaceProject');
+ if(save)save.hidden=true; // top-bar button delegates to the same existing save function
+ if(load){const label=load.closest('label');if(label){label.style.position='absolute';label.style.width='1px';label.style.height='1px';label.style.overflow='hidden';label.style.clipPath='inset(50%)'}}
+ const guidance=side?.querySelector('details > summary')?.textContent?.startsWith('Guided fitting')?side.querySelector('details'):null;
+ if(guidance&&document.getElementById('tutorial_main')){guidance.open=false;document.getElementById('tutorial_main').append(guidance)}
+ const mixing=[...side?.querySelectorAll('details')||[]].find(d=>d.querySelector('summary')?.textContent?.startsWith('Interface mixing / roughness'));
+ if(mixing&&document.getElementById('tutorial_main')){mixing.open=false;document.getElementById('tutorial_main').append(mixing)}
+ // A shared fitting range has a slider and the existing numerical field remains authoritative.
+ function oclAttachRangeSlider(field){
+  if(!field||field.type!=='number'||field.dataset.hasRangeSlider)return;
+  field.dataset.hasRangeSlider='1';const slider=document.createElement('input');slider.type='range';slider.step='any';
+  const sync=()=>{const lo=Number(field.dataset.domainMin||field.min||400),hi=Number(field.dataset.domainMax||field.max||1100);if(hi<=lo)return;slider.min=lo;slider.max=hi;slider.value=Math.max(lo,Math.min(hi,Number(field.value)||lo))};
+  slider.addEventListener('input',()=>{field.value=slider.value;field.dispatchEvent(new Event('input',{bubbles:true}));field.dispatchEvent(new Event('change',{bubbles:true}))});
+  field.addEventListener('input',sync);field.insertAdjacentElement('afterend',slider);sync();
+ }
+ ['joint_wl_min','joint_wl_max','wlmin_field','wlmax_field'].forEach(id=>oclAttachRangeSlider(document.getElementById(id)));
  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
  const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
