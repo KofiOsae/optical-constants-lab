@@ -512,10 +512,15 @@ def custom_fit():
                     'transparent_threshold_nm':result['transparent_threshold_nm'],'nfev':result['nfev']},
                 'note':'Data-only initializer; thickness fixed. Optical constants may be nonunique.'})
         result=fit([s],settings)
+        try:
+            from scientific_diagnostics import jacobian_report
+            single_sensitivity=jacobian_report(result['result'])
+        except (AttributeError,ValueError,TypeError,np.linalg.LinAlgError):
+            single_sensitivity={'available':False,'reason':'This optimizer did not supply a usable local Jacobian.'}
         if result.get('fitted_interface_mixing_nm') is not None:s.roughness_nm=float(result['fitted_interface_mixing_nm'])
         nf,kf=result['optical_constants'](s.wavelength_nm)
         pred=compare_prediction(s,nf,kf,result['thicknesses'][0])
-        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'fitted_interface_mixing_nm':result.get('fitted_interface_mixing_nm'),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
+        return jsonify({'wavelength_nm':s.wavelength_nm.tolist(),'n':nf.tolist(),'k':kf.tolist(),'R_measured':None if s.R is None else s.R.tolist(),'T_measured':None if s.T is None else s.T.tolist(),'R_fit':pred['R'].tolist(),'T_fit':pred['T'].tolist(),'thickness_nm':float(result['thicknesses'][0]),'fitted_interface_mixing_nm':result.get('fitted_interface_mixing_nm'),'rmse':float(pred['rmse']),'success':bool(result['result'].success),'message':str(result['result'].message),'initialization':initialization,'sensitivity':single_sensitivity,'note':'User-supplied spectrum: no ground-truth n/k available. Single-spectrum inversion may be non-unique.'})
     except Exception as exc:return jsonify({'error':str(exc)}),400
 
 @app.post('/api/fit')
