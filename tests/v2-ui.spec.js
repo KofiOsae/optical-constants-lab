@@ -78,6 +78,7 @@ test('Multilayer controls follow shared input sequence and adapt to the selected
   return ids.map(id=>Array.from(el.querySelectorAll('*')).indexOf(el.querySelector('#'+id)));
  });
  expect(order.every((v,i)=>v>=0&&(i===0||v>order[i-1]))).toBeTruthy();
+ await frame.locator('#model').locator('xpath=ancestor::details[1]/summary').click();
  await frame.locator('#model').selectOption('spline');
  await expect(frame.locator('#basis').locator('..')).toBeVisible();
  await expect(frame.locator('#osc').locator('..')).toBeHidden();
