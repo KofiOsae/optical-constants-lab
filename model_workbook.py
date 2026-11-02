@@ -9,7 +9,7 @@ def build_model_workbook(model, coefficients, wavelengths_nm, metadata=None):
         raise ValueError('Excel model reconstruction requires Lorentz or Drude-Lorentz coefficients')
     offset=3 if model=='drude_lorentz' else 1
     count=(len(coefficients)-offset)//3
-    if count not in (1,2,3) or offset+3*count!=len(coefficients):
+    if not (1<=count<=8) or offset+3*count!=len(coefficients):
         raise ValueError('Invalid causal parameter count')
     wb=Workbook()
     p=wb.active;p.title='Parameters'
