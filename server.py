@@ -543,17 +543,17 @@ if __name__=='__main__':
 @app.post('/api/export-causal-workbook')
 def export_causal_workbook():
     try:
-        from model_workbook import build_model_workbook
+        from model_workbook import build_model_workbook,build_numerical_model_workbook
         payload=request.get_json(force=True)
         model=payload['model']
         coefficients=payload['coefficients']
         wavelengths=payload['wavelength_nm']
-        if len(wavelengths)>10000 or len(coefficients)>12:
+        if len(wavelengths)>10000 or len(coefficients)>200:
             raise ValueError('Workbook size exceeds allowed limits')
         import numpy as np
         if not np.all(np.isfinite(np.asarray(coefficients,dtype=float))) or not np.all(np.isfinite(np.asarray(wavelengths,dtype=float))) or np.any(np.asarray(wavelengths,dtype=float)<=0):
             raise ValueError('Wavelengths and coefficients must be finite and wavelengths positive')
-        book=build_model_workbook(model,coefficients,wavelengths,payload.get('metadata',{}))
+        book=(build_model_workbook(model,coefficients,wavelengths,payload.get('metadata',{})) if model in ('lorentz','drude_lorentz') else build_numerical_model_workbook(model,coefficients,wavelengths,payload.get('metadata',{})))
         return send_file(book,as_attachment=True,download_name='fitted_optical_model.xlsx',mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except (ValueError,TypeError,KeyError) as exc:
         return jsonify({'error':str(exc)}),400
