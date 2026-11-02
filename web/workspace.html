@@ -495,8 +495,8 @@ document.addEventListener('DOMContentLoaded',()=>{
  }
  // Shared top-level workspace actions and compact layout, preserving existing handlers.
  const topSave=document.getElementById('ocl-top-save'),topLoad=document.getElementById('ocl-top-load');
- if(topSave)topSave.onclick=()=>{const embedded=document.getElementById('workflow')?.value==='multilayer';if(embedded){alert('For Multilayer use Save project within the Multilayer workspace.')}else document.getElementById('saveWorkspaceProject')?.click()};
- if(topLoad)topLoad.onclick=()=>{if(document.getElementById('workflow')?.value==='multilayer'){alert('For Multilayer use Load saved project within the Multilayer workspace.')}else document.getElementById('loadWorkspaceProject')?.click()};
+ if(topSave)topSave.onclick=()=>{const embedded=document.getElementById('workflow')?.value==='multilayer';if(embedded){document.getElementById('multilayer_frame')?.contentDocument?.getElementById('saveProject')?.click()}else document.getElementById('saveWorkspaceProject')?.click()};
+ if(topLoad)topLoad.onclick=()=>{if(document.getElementById('workflow')?.value==='multilayer'){document.getElementById('multilayer_frame')?.contentDocument?.getElementById('loadProject')?.click()}else document.getElementById('loadWorkspaceProject')?.click()};
  const top=document.querySelector('#laboratory_main .top'),nav=document.querySelector('nav.main-tabs');
  if(top&&nav){top.style.display='flex';top.style.flexWrap='wrap';top.style.alignItems='center';top.style.gap='8px';nav.insertAdjacentElement('afterend',top)}
  const resize=document.querySelector('.column-resize');if(resize&&top)top.append(resize);
