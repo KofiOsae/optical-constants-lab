@@ -68,3 +68,21 @@ test('Shared column sliders govern embedded Multilayer and survive workflow swit
  await expect(frame.locator('html')).toHaveCSS('--settings-width','27%');
  await expect(frame.locator('html')).toHaveCSS('--diagnostics-width','25%');
 });
+
+test('Multilayer controls follow shared input sequence and adapt to the selected model',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ const order=await frame.locator('#controls').evaluate(el=>{
+  const ids=['samples','reference','model','stageControls','diagnostic'];
+  return ids.map(id=>Array.from(el.querySelectorAll('*')).indexOf(el.querySelector('#'+id)));
+ });
+ expect(order.every((v,i)=>v>=0&&(i===0||v>order[i-1]))).toBeTruthy();
+ await frame.locator('#model').locator('xpath=ancestor::details[1]/summary').click();
+ await frame.locator('#model').selectOption('spline');
+ await expect(frame.locator('#basis').locator('..')).toBeVisible();
+ await expect(frame.locator('#osc').locator('..')).toBeHidden();
+ await frame.locator('#model').selectOption('lorentz');
+ await expect(frame.locator('#osc').locator('..')).toBeVisible();
+ await expect(frame.locator('#basis').locator('..')).toBeHidden();
+});
