@@ -32,3 +32,22 @@ test('Embedded Multilayer filename thickness and diagnostic controls',async({pag
  await expect(frame.locator('#multistartPlot')).toHaveCount(1);
  await expect(frame.locator('#reference')).toHaveCount(1);
 });
+
+test('Visual layout regression: no duplicated visible embedded Multilayer guides',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#v2StackDesigner')).toBeVisible();
+ await expect(frame.locator('#widthControls')).toBeHidden();
+ await expect(frame.locator('h1')).toBeHidden();
+ await expect(frame.getByText('Guided example datasets',{exact:false})).toBeHidden();
+ await expect(frame.getByText('Measurement suitability — read before fitting experimental R/T',{exact:false})).toBeHidden();
+ await expect(frame.locator('#stageControls')).toHaveCount(1);
+ await expect(frame.locator('#reference')).toHaveCount(1);
+});
+test('Single and Joint do not show a duplicate measurement suitability shortcut',async({page})=>{
+ await page.goto(base);
+ await expect(page.getByRole('button',{name:'Measurement suitability · assumptions'})).toBeHidden();
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.getByRole('button',{name:'Measurement suitability · assumptions'})).toBeHidden();
+});
