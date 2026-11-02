@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  if(topSave)topSave.onclick=()=>{const embedded=document.getElementById('workflow')?.value==='multilayer';if(embedded){document.getElementById('multilayer_frame')?.contentDocument?.getElementById('saveProject')?.click()}else document.getElementById('saveWorkspaceProject')?.click()};
  if(topLoad)topLoad.onclick=()=>{if(document.getElementById('workflow')?.value==='multilayer'){document.getElementById('multilayer_frame')?.contentDocument?.getElementById('loadProject')?.click()}else document.getElementById('loadWorkspaceProject')?.click()};
  const top=document.querySelector('#laboratory_main .top'),nav=document.querySelector('nav.main-tabs');
- if(top&&nav){top.style.display='flex';top.style.flexWrap='wrap';top.style.alignItems='center';top.style.gap='8px';nav.insertAdjacentElement('afterend',top)}
+ if(top&&nav){top.style.display='flex';top.style.flexWrap='wrap';top.style.alignItems='center';top.style.gap='8px';nav.style.display='flex';nav.style.flexWrap='wrap';nav.style.alignItems='center';nav.style.gap='8px';top.style.margin='0';top.style.flex='1 1 400px';nav.append(top)}
  const resize=document.querySelector('.column-resize');if(resize&&top)top.append(resize);
  // Keep the detailed suitability reference in the tutorial, with a visible shortcut.
  const tutorial=document.getElementById('tutorial_main');
