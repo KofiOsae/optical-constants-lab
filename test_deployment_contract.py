@@ -271,7 +271,9 @@ def test_multilayer_staged_lorentz_api_high_to_full_wavelengths():
 def test_multilayer_preview_is_button_only_and_staged_controls_present():
     import re
     html=(ROOT/'web'/'multilayer.html').read_text(encoding='utf8')
-    assert 'id="previewPanel" hidden' in html
+    assert 'id="previewPanel"' not in html
+    assert "plot('spectra',traces" in html
+    assert 'function renderMeasuredPreview()' in html
     assert "$('previewButton').onclick=previewSpectra" in html
     assert "addEventListener('change',previewSpectra)" not in html
     assert "onclick=()=>runMultilayer('stage1')" in html
