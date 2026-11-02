@@ -93,7 +93,7 @@ function renderMetrics(result){renderFittedMLParameters(result);const el=$('metr
 function renderHistory(){if(!fitHistory.length){Plotly.purge('historyPlot');$('historyList').textContent='No completed runs yet';return}plot('historyPlot',[{x:fitHistory.map(h=>h.run),y:fitHistory.map(h=>h.rmse),mode:'lines+markers'}],{title:'Completed-run weighted RMSE',xaxis:{title:'Run number',dtick:1},yaxis:{title:'Weighted RMSE'},showlegend:false});$('historyList').textContent=fitHistory.map(h=>'Run '+h.run+' · '+h.model+' · '+Number(h.rmse).toPrecision(5)).join(' | ')}
 $('historyClear').onclick=()=>{fitHistory=[];renderHistory()};$('historyExport').onclick=()=>{const rows=['run,model,weighted_rmse,success,samples',...fitHistory.map(h=>[h.run,h.model,h.rmse,h.success,h.samples].join(','))];const url=URL.createObjectURL(new Blob([rows.join(String.fromCharCode(10))],{type:'text/csv'}));const a=document.createElement('a');a.href=url;a.download='multilayer_fit_history.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 $('startsExport').onclick=()=>{
- const starts=last?.multistart?.runs||last?.multistart?.start_results||last?.stages?.start_results||[];
+ const starts=last?.multistart?.runs||last?.multistart?.start_results||last?.stages?.start_results||(last?.multistart?.costs||[]).map((cost,i)=>({start:i,cost,selected:i===last.multistart.selected_start}));
  const entries=Array.isArray(starts)?starts:[];
  if(!entries.length){$('status').textContent='No individual multistart solutions were returned by this fit.';return}
  const cols=[...new Set(entries.flatMap(v=>Object.keys(v)))];
