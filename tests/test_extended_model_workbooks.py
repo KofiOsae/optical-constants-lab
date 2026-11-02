@@ -19,7 +19,7 @@ def test_organic_export_matches_exact_model(model,params):
     n,k=organic_nk(wavelength,params,model,1)
     np.testing.assert_allclose([ws.cell(row,4).value for row in range(2,5)],n,rtol=1e-10)
     np.testing.assert_allclose([ws.cell(row,5).value for row in range(2,5)],k,rtol=1e-10)
-    assert 'not live Excel' in book['External_reconstruction']['A2'].value
+    assert 'not live Excel' in book['External_reconstruction']['A1'].value
 
 def test_spline_export_domain_and_coefficients():
     w=np.array([500.,650.,800.])
