@@ -52,6 +52,33 @@ document.addEventListener('DOMContentLoaded',()=>{
  const note=document.createElement('p');note.className='muted';note.textContent='Workflow: upload sample spectra → choose the measured wavelength ranges → configure geometry/model → optional progressive Stage 1 → fit → inspect/export.';
  controls?.prepend(note);
 });
+// Embedded Multilayer is governed by the same top-level navigation and tutorial as Single/Joint.
+document.addEventListener('DOMContentLoaded',()=>{
+ if(window.self===window.top)return;
+ const host=document.getElementById('layout');
+ const stack=document.getElementById('v2StackDesigner');
+ if(stack&&host)host.insertBefore(stack,host.firstElementChild);
+ // Explicitly hide old layout wrappers by their CONTENT, not by a fragile direct-child selector.
+ for(const details of document.querySelectorAll('details')){
+  const heading=details.querySelector(':scope > summary')?.textContent||'';
+  if(/Measurement suitability|Guided example datasets/.test(heading)){
+   const wrapper=details.parentElement;
+   if(wrapper?.parentElement===host)wrapper.hidden=true;
+   else details.hidden=true;
+  }
+ }
+ for(const selector of ['#widthControls','h1']){
+  const el=document.querySelector(selector);if(el)el.hidden=true;
+ }
+ const guide=document.querySelector('#controls > details');
+ if(guide&&/Guided setup/.test(guide.querySelector('summary')?.textContent||''))guide.hidden=true;
+ const ref=document.getElementById('reference')?.closest('fieldset');
+ if(ref){ref.querySelector('legend').textContent='Reference n,k · optional (before fitting)';}
+ for(const p of document.querySelectorAll('p')){
+  if(p.textContent.trim().startsWith('Coherent isotropic layers')||p.textContent.trim().startsWith('Optical media:')||p.textContent.trim().startsWith('Workflow: upload sample spectra'))p.hidden=true;
+ }
+ const topLink=[...document.querySelectorAll('a')].find(a=>a.textContent.includes('Main laboratory'));if(topLink)topLink.parentElement.hidden=true;
+});
 function sample(){if($('samples').children.length>=12)return;const id=++nextId;const root=document.createElement('fieldset');root.className='sample';root.dataset.id=id;root.innerHTML=`<legend class='sampleLegend' style='cursor:pointer'>Sample ${id} · click to collapse</legend><div class='sampleBody'><label>R/T spectrum CSV<input class="file" type="file" accept=".csv,.tsv,.json"></label><label>Unknown thickness (nm)<input class="thickness" type="number" value="150" min="1"></label><label>Thickness lower bound (nm)<input class="dlo" type="number" value="135" min="1"></label><label>Thickness upper bound (nm)<input class="dhi" type="number" value="165" min="1"></label><label>Interface mixing thicknesses (nm, comma-separated; ambient to substrate; blank = none)<input class="interfaces" type="text" placeholder="0, 0"></label><label>Substrate n<input class="substrate" type="number" step=".01" value="1.5"></label><label>Substrate k (absorbing)<input class="substratek" type="number" min="0" step=".001" value="0"></label><label>Optional substrate n,k CSV (overrides constants)<input class="subri" type="file" accept=".csv,.txt"></label><label>Substrate thickness (nm; coherent slab only; thick/incoherent plates not modeled)<input class="subd" type="number" min="0" step="1" placeholder="Semi-infinite"></label><label>Backing medium n<input class="backing" type="number" min=".01" step=".01" value="1"></label><label>Ambient n<input class="ambient" type="number" step=".01" value="1"></label><label>Angle (degrees)<input class="angle" type="number" value="0" min="0" max="84"></label><label>Polarization<select class="pol"><option value="s">TE / s</option><option value="p">TM / p</option></select></label><label>Wavelength unit<select class="unit"><option value="auto">Auto</option><option value="nm">nm</option><option value="um">µm</option></select></label><label>Fit start (nm)<input class="fitlo" type="number" step="any" placeholder="Measured minimum"></label><label>Fit end (nm)<input class="fithi" type="number" step="any" placeholder="Measured maximum"></label><label>Signal unit<select class="signal"><option value="auto">Auto</option><option value="fraction">Fraction</option><option value="percent">Percent</option></select></label><p>Known layers ordered from ambient toward substrate. Above/below refers to the unknown film.</p><button type="button" class="addbefore">Add known layer above</button> <button type="button" class="addafter">Add known layer below</button> <button type="button" class="remove">Remove sample</button><table><thead><tr><th>Position</th><th>n</th><th>k</th><th>d (nm)</th><th>Optional n,k CSV</th><th></th></tr></thead><tbody class="layers"></tbody></table></div>`;
 root.querySelector('.sampleLegend').onclick=()=>{const body=root.querySelector('.sampleBody');body.hidden=!body.hidden};root.querySelector('.addbefore').onclick=()=>layer(root,'before');root.querySelector('.addafter').onclick=()=>layer(root,'after');root.querySelector('.remove').onclick=()=>{if($('samples').children.length>1){root.remove();hidePreview()}};// Keep the measurement window immediately beside the uploaded R/T file, not under substrate inputs.
  const body=root.querySelector('.sampleBody');
