@@ -96,6 +96,6 @@ test('Multilayer uses only one R/T graph on preview and retains roughness entry'
  await expect(f.locator('#loadProject').locator('..')).toBeHidden();
  await expect(f.locator('#preview')).toHaveCount(0);
  await f.locator('#previewButton').click();
- await expect(f.locator('#spectra .js-plotly-plot')).toHaveCount(1,{timeout:15000});
+ await expect(f.locator('#spectra.js-plotly-plot')).toHaveCount(1,{timeout:15000});
  await expect(f.locator('#viewSample option')).toHaveCount(1);
 });
