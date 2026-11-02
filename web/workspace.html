@@ -358,7 +358,13 @@ function oclRenderKK(){
  const baseline=mode==='sskk'?anchorEpsilon-integration[idx]:epsinf;
  const calculated=integration.map(v=>v+baseline);
  const deviation=Math.sqrt(calculated.reduce((a,v,i)=>a+(v-eps1[i])**2,0)/N);
- const traces=[{x:entries.map(z=>z.w),y:eps1,name:'ε₁ fitted'},{x:entries.map(z=>z.w),y:calculated,name:mode.toUpperCase()+' finite-band estimate',line:{dash:'dash'}}];
+ const selectedView=document.getElementById('ocl-kk-view')?.value||'both';
+ const xaxis=entries.map(z=>z.w);
+ const traces=[];
+ if(selectedView==='both'||selectedView==='fitted')traces.push({x:xaxis,y:eps1,name:'ε₁ fitted'});
+ if(selectedView==='both'||selectedView==='derived')traces.push({x:xaxis,y:calculated,name:mode.toUpperCase()+' finite-band estimate',line:{dash:'dash'}});
+ if(selectedView==='both'||selectedView==='difference')traces.push({x:xaxis,y:eps1.map((v,i)=>v-calculated[i]),name:'Δε₁ = fitted − '+mode.toUpperCase()});
+
  target.style.display='block';
  plot('ocl-kk-plot',traces,mode.toUpperCase()+' · dielectric consistency (finite-band)');
  note.textContent='ε∞ = '+epsinf.toPrecision(6)+'; finite-band RMSE(ε₁): '+deviation.toPrecision(5)+(mode==='sskk'?'; anchor '+anchorEpsilon.toPrecision(6)+' at '+entries[idx].w.toFixed(1)+' nm ('+(independent?'user supplied':'fitted')+')':'')+'. Boundary truncation and unmeasured tails limit interpretation; this is not a causality certification.';
@@ -498,7 +504,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   details.innerHTML='<summary>Advanced · KK / SSKK dielectric diagnostics</summary><p class="note">Finite-band consistency comparison only; missing outside-band absorption can bias the reconstructed real dielectric function. SSKK anchors the offset to a fitted ε₁ value, not an independent measurement.</p><label>Diagnostic <select id="ocl-kk-method"><option value="none">Off</option><option value="kk">KK · finite spectral band</option><option value="sskk">SSKK · anchored finite band</option></select></label><label>Background ε∞ (finite-band KK baseline) <input id="ocl-kk-epsinf" type="number" min="0" step="any" value="1"></label><label>SSKK anchor wavelength (nm) <input id="ocl-kk-anchor" type="number" min="1" value="700" step="any"></label><label>Anchor ε₁ (optional; blank = fitted ε₁ at anchor) <input id="ocl-kk-epsilon-anchor" type="number" step="any" placeholder="Use fitted ε₁"></label><p class="note">Provide an independently measured ε₁ anchor where available. A fitted anchor only offsets the finite-band curve; it is not independent KK validation.</p>';
   kkHost.append(details);
   const results=document.getElementById('results');
-  if(results&&!document.getElementById('ocl-kk-results')){const panel=document.createElement('details');panel.id='ocl-kk-results';panel.innerHTML='<summary>KK / SSKK dielectric consistency · reconstructed properties</summary><div id="ocl-kk-plot" class="plot" style="height:310px;display:none"></div><p id="ocl-kk-note" class="note"></p>';results.append(panel);panel.addEventListener('toggle',oclRenderKK)}
+  if(results&&!document.getElementById('ocl-kk-results')){const panel=document.createElement('details');panel.id='ocl-kk-results';panel.innerHTML='<summary>KK / SSKK dielectric consistency · reconstructed properties</summary><label>Displayed curves <select id="ocl-kk-view"><option value="both">Fitted, KK/SSKK-derived, and difference</option><option value="fitted">Fitted ε₁</option><option value="derived">KK/SSKK-derived ε₁</option><option value="difference">Difference Δε₁</option></select></label><div id="ocl-kk-plot" class="plot" style="height:310px;display:none"></div><p id="ocl-kk-note" class="note"></p>';document.getElementById('result_plot')?.insertAdjacentElement('afterend',panel);panel.querySelector('select').addEventListener('change',oclRenderKK);panel.addEventListener('toggle',oclRenderKK)}
   details.querySelector('select').addEventListener('change',oclRenderKK);
   details.querySelectorAll('input').forEach(input=>input.addEventListener('change',oclRenderKK));
   details.addEventListener('toggle',()=>{if(details.open)oclRenderKK()});
