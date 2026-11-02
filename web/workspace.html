@@ -549,6 +549,16 @@ document.addEventListener('DOMContentLoaded',()=>{
   field.addEventListener('input',sync);field.insertAdjacentElement('afterend',slider);sync();
  }
  ['joint_wl_min','joint_wl_max','wlmin_field','wlmax_field'].forEach(id=>oclAttachRangeSlider(document.getElementById(id)));
+ // Single/Joint and embedded Multilayer share one authoritative width control.
+ const mlFrame=document.getElementById('multilayer_frame');
+ function oclSyncMultilayerWidths(){
+  const width=Number(document.getElementById('singleColumnWidth')?.value||27);
+  const diag=Number(document.getElementById('diagnosticColumnWidth')?.value||25);
+  if(!mlFrame?.contentWindow)return;
+  mlFrame.contentWindow.postMessage({type:'ocl-shared-column-widths',settings:width,diagnostics:diag},location.origin);
+ }
+ ['singleColumnWidth','diagnosticColumnWidth'].forEach(id=>document.getElementById(id)?.addEventListener('input',oclSyncMultilayerWidths));
+ mlFrame?.addEventListener('load',oclSyncMultilayerWidths);
  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
  const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
