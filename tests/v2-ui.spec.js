@@ -51,3 +51,20 @@ test('Single and Joint do not show a duplicate measurement suitability shortcut'
  await page.locator('#workflow').selectOption('joint');
  await expect(page.getByRole('button',{name:'Measurement suitability · assumptions'})).toBeHidden();
 });
+
+test('Shared column sliders govern embedded Multilayer and survive workflow switches',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#layout')).toBeVisible();
+ await page.locator('#singleColumnWidth').fill('34');
+ await page.locator('#diagnosticColumnWidth').fill('20');
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','34%');
+ await expect(frame.locator('html')).toHaveCSS('--diagnostics-width','20%');
+ await page.locator('#workflow').selectOption('single');
+ await page.locator('#workflow').selectOption('multilayer');
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','34%');
+ await page.locator('#resetColumnWidths').click();
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','27%');
+ await expect(frame.locator('html')).toHaveCSS('--diagnostics-width','25%');
+});
