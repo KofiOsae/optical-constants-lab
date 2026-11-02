@@ -500,6 +500,17 @@ document.addEventListener('DOMContentLoaded',()=>{
  const top=document.querySelector('#laboratory_main .top'),nav=document.querySelector('nav.main-tabs');
  if(top&&nav){top.style.display='flex';top.style.flexWrap='wrap';top.style.alignItems='center';top.style.gap='8px';nav.insertAdjacentElement('afterend',top)}
  const resize=document.querySelector('.column-resize');if(resize&&top)top.append(resize);
+ // Keep the detailed suitability reference in the tutorial, with a visible shortcut.
+ const tutorial=document.getElementById('tutorial_main');
+ const suitability=[...document.querySelectorAll('details')].find(d=>d.querySelector(':scope > summary')?.textContent?.includes('Measurement suitability'));
+ if(tutorial&&suitability&&!suitability.closest('#tutorial_main')){
+  const pointer=document.createElement('button');pointer.type='button';
+  pointer.textContent='Measurement suitability · assumptions';
+  pointer.title='Read instrument and substrate assumptions before fitting';
+  pointer.onclick=()=>{document.getElementById('nav_tutorial')?.click();suitability.open=true;suitability.scrollIntoView({block:'start',behavior:'smooth'})};
+  suitability.parentElement.insertBefore(pointer,suitability);
+  tutorial.insertBefore(suitability,tutorial.children[1]||null);
+ }
  const ss=document.getElementById('single_settings');if(ss&&!document.getElementById('ocl-single-stage')){const node=oclStageControls('single');node.id='ocl-single-stage';ss.append(node)}
  const jj=document.getElementById('joint_upload');if(jj&&!document.getElementById('ocl-joint-stage')){const node=oclStageControls('joint');node.id='ocl-joint-stage';jj.append(node)}
  const wrap=(id,title)=>{const root=document.getElementById(id);if(!root||root.dataset.oclCollapsible)return;root.dataset.oclCollapsible='1';const details=document.createElement('details');details.open=true;details.className='ocl-group';const summary=document.createElement('summary');summary.textContent=title;const body=document.createElement('div');while(root.firstChild)body.append(root.firstChild);details.append(summary,body);root.append(details)};
