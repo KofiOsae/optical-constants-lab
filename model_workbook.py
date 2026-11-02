@@ -135,6 +135,38 @@ def build_numerical_model_workbook(model, coefficients, wavelengths_nm, metadata
         'Only evaluate inside the fitted wavelength band; extrapolated constants are not validated.',
     ]
     for line in lines:doc.append([line])
+    # Include runnable source instructions so changing wavelength does not depend on a Lab server.
+    runner_sheet=wb.create_sheet('Python_runner')
+    script=[
+        'import numpy as np',
+        'wavelength_nm=np.array('+repr(w.tolist())+',dtype=float)',
+        'parameters=np.array('+repr(p.tolist())+',dtype=float)',
+        'model='+repr(model),
+        'oscillators='+str((len(p)-1)//MODEL_PARAMETER_COUNTS[model] if model in MODEL_PARAMETER_COUNTS else 0),
+    ]
+    if model=='kk_constrained':
+        script.extend(['centers_eV=np.array('+repr(centers.tolist())+')','widths_eV=np.array('+repr(widths.tolist())+')'])
+    if model=='spline':
+        script.extend(['domain_min_nm='+repr(lo),'domain_max_nm='+repr(hi),
+         'from scipy.interpolate import BSpline',
+         'def spline_design(x,low,high,n_basis):',
+         '    degree=3',
+         '    internal=np.linspace(low,high,n_basis-degree+1)[1:-1]',
+         '    knots=np.r_[np.repeat(low,degree+1),internal,np.repeat(high,degree+1)]',
+         '    return BSpline(knots,np.eye(n_basis),degree)(x)'])
+    script.extend(runner.split('\\n'))
+    script.append('for row in zip(wavelength_nm,n,k):print(*row,sep=\",\")')
+    for line in script: runner_sheet.append([line])
+    if model in MODEL_PARAMETER_COUNTS:
+        # The matching material evaluator source is embedded, not linked to a future server.
+        from pathlib import Path
+        evaluator=wb.create_sheet('organic_dispersion_py')
+        for line in Path(__file__).with_name('organic_dispersion.py').read_text(encoding='utf-8').splitlines():
+            evaluator.append([line])
+        doc.append(['Save organic_dispersion_py column A as organic_dispersion.py beside Python_runner.py.'])
+        doc.append(['Install numpy and scipy before executing the two local scripts.'])
+    else:
+        doc.append(['Save Python_runner column A as Python_runner.py and run with numpy and scipy.'])
     for ws in wb:
         ws.freeze_panes='A2'
         for cell in ws[1]:
