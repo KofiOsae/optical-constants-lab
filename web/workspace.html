@@ -524,14 +524,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   pointer.textContent='Measurement suitability · assumptions';
   pointer.title='Read instrument and substrate assumptions before fitting';
   pointer.onclick=()=>{document.getElementById('nav_tutorial')?.click();suitability.open=true;suitability.scrollIntoView({block:'start',behavior:'smooth'})};
-  suitability.parentElement.insertBefore(pointer,suitability);
+  pointer.hidden=true;
   tutorial.insertBefore(suitability,tutorial.children[1]||null);
  }
  // One compact toolbar; laboratory help lives in Tutorial, not the fitting inputs.
  const workflowTop=document.querySelector('#laboratory_main .top');
  const journey=workflowTop?.querySelector('.note');
  const heading=document.querySelector('header h1');
- if(journey&&heading){journey.style.fontSize='12px';heading.insertAdjacentElement('afterend',journey)}
+ if(journey&&heading){journey.style.fontSize='12px';journey.style.marginLeft='16px';journey.style.whiteSpace='nowrap';heading.insertAdjacentElement('afterend',journey);heading.parentElement.style.justifyContent='flex-start';const legacy=heading.parentElement.querySelector('a[href="/legacy"]')?.parentElement;if(legacy)legacy.style.marginLeft='auto'}
  const side=document.querySelector('#single_joint_workspace .settings');
  const save=document.getElementById('saveWorkspaceProject'),load=document.getElementById('loadWorkspaceProject');
  if(save)save.hidden=true; // top-bar button delegates to the same existing save function
