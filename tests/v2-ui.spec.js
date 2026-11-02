@@ -99,3 +99,16 @@ test('Multilayer uses only one R/T graph on preview and retains roughness entry'
  await expect(f.locator('#spectra.js-plotly-plot')).toHaveCount(1,{timeout:15000});
  await expect(f.locator('#viewSample option')).toHaveCount(1);
 });
+
+test('Clear reference controls are available in Single, Joint and Multilayer',async({page})=>{
+ await page.goto(base);
+ await expect(page.locator('#reference_ri_clear')).toBeVisible();
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#reference_ri_clear')).toBeVisible();
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#referenceClear')).toBeAttached();
+ await frame.locator('#reference').setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await frame.locator('#referenceClear').click();
+ await expect(frame.locator('#reference')).toHaveJSProperty('value','');
+});
