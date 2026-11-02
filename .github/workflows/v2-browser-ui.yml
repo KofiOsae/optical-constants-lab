@@ -1,0 +1,29 @@
+name: V2 browser interface parity
+on:
+  pull_request:
+    branches: [develop/v2-visual-publication]
+  workflow_dispatch:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - run: npm install --no-save @playwright/test
+      - run: npx playwright install --with-deps chromium
+      - name: Start laboratory
+        run: |
+          gunicorn server:app --bind 127.0.0.1:8765 --workers 1 --threads 2 --timeout 180 > /tmp/ocl-server.log 2>&1 &
+          for i in $(seq 1 30); do if curl -fsS http://127.0.0.1:8765/ >/dev/null; then exit 0; fi; sleep 1; done
+          cat /tmp/ocl-server.log
+          exit 1
+      - run: npx playwright test tests/v2-ui.spec.js --reporter=line --workers=1
+      - if: failure()
+        run: cat /tmp/ocl-server.log
