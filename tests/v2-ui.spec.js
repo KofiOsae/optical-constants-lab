@@ -86,3 +86,16 @@ test('Multilayer controls follow shared input sequence and adapt to the selected
  await expect(frame.locator('#osc').locator('..')).toBeVisible();
  await expect(frame.locator('#basis').locator('..')).toBeHidden();
 });
+
+test('Multilayer uses only one R/T graph on preview and retains roughness entry',async({page})=>{
+ await page.goto(base);await page.locator('#workflow').selectOption('multilayer');
+ const f=page.frameLocator('#multilayer_frame');
+ await f.locator('.file').first().setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await expect(f.locator('.interfaces').first()).toBeAttached();
+ await expect(f.locator('#saveProject')).toBeHidden();
+ await expect(f.locator('#loadProject').locator('..')).toBeHidden();
+ await expect(f.locator('#preview')).toHaveCount(0);
+ await f.locator('#previewButton').click();
+ await expect(f.locator('#spectra .js-plotly-plot')).toHaveCount(1,{timeout:15000});
+ await expect(f.locator('#viewSample option')).toHaveCount(1);
+});
