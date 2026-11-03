@@ -135,3 +135,23 @@ test('Assisted fit assessment exists across Single, Joint, and embedded Multilay
  await frame.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
  await expect(frame.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
 });
+
+test('Assisted assessment never certifies an underidentified but low-RMSE fit',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await page.evaluate(()=>{
+  window.oclValidationResult=()=>({
+   success:true,weighted_rmse:1e-10,
+   sensitivity:{rank:3,parameters:5,condition_number:200},
+   wavelength_nm:[500,600],n:[1.5,1.5],k:[0,0],
+   predictions:[{R_fit:[0.1,0.12],T_fit:[0.9,0.88]}]
+  });
+  document.dispatchEvent(new Event('ocl-fit-complete'));
+ });
+ const report=page.locator('#v2-validation-content');
+ await expect(report).toContainText('FAIL (local identifiability)');
+ await expect(report).toContainText('3/5 free parameter directions');
+ await expect(report).toContainText('Material accuracy');
+ await expect(report).toContainText('NOT ASSESSED');
+});
