@@ -155,3 +155,13 @@ test('Assisted assessment never certifies an underidentified but low-RMSE fit',a
  await expect(report).toContainText('Material accuracy');
  await expect(report).toContainText('NOT ASSESSED');
 });
+
+test('Joint running status identifies selected Joint model, not stale Single model',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await page.locator('#joint_method').selectOption('tauc_lorentz');
+ await page.evaluate(()=>{window.confirm=()=>true;});
+ await page.locator('#run').click();
+ await expect(page.locator('#status')).toContainText('Running tauc_lorentz',{timeout:8000});
+});
