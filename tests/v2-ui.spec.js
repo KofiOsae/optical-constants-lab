@@ -162,6 +162,7 @@ test('Joint running status identifies selected Joint model, not stale Single mod
  await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
  await page.locator('#joint_method').selectOption('tauc_lorentz');
  await page.evaluate(()=>{window.confirm=()=>true;});
- await page.locator('#run').click();
+ await page.route('**/api/joint-fit',route=>{}); // Keep request pending to inspect transient running status.
+ await page.locator('#run').dispatchEvent('click');
  await expect(page.locator('#status')).toContainText('Running tauc_lorentz',{timeout:8000});
 });
