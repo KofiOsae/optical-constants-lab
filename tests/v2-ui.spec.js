@@ -112,3 +112,46 @@ test('Clear reference controls are available in Single, Joint and Multilayer',as
  await frame.locator('#referenceClear').click();
  await expect(frame.locator('#reference')).toHaveJSProperty('value','');
 });
+
+test('Tutorial fit reliability is consolidated and includes calibrated scientific criteria',async({page})=>{
+ await page.goto(base);
+ await page.locator('#nav_tutorial').click();
+ await expect(page.locator('#tutorial-diagnostics')).toBeVisible();
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Jacobian rank');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Multistart');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('condition-number');
+ await expect(page.getByText('Decision guide · Is my fit good enough?')).toHaveCount(0);
+});
+test('Assisted fit assessment exists across Single, Joint, and embedded Multilayer',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation').locator('summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(page.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#v2-validation-tabs button[data-tab="assisted"]')).toHaveCount(1);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await frame.locator('#v2-science-validation summary').click();
+ await frame.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(frame.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+});
+
+test('Assisted assessment never certifies an underidentified but low-RMSE fit',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await page.evaluate(()=>{
+  window.oclValidationResult=()=>({
+   success:true,weighted_rmse:1e-10,
+   sensitivity:{rank:3,parameters:5,condition_number:200},
+   wavelength_nm:[500,600],n:[1.5,1.5],k:[0,0],
+   predictions:[{R_fit:[0.1,0.12],T_fit:[0.9,0.88]}]
+  });
+  document.dispatchEvent(new Event('ocl-fit-complete'));
+ });
+ const report=page.locator('#v2-validation-content');
+ await expect(report).toContainText('FAIL (local identifiability)');
+ await expect(report).toContainText('3/5 free parameter directions');
+ await expect(report).toContainText('Material accuracy');
+ await expect(report).toContainText('NOT ASSESSED');
+});
