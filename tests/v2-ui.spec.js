@@ -112,3 +112,26 @@ test('Clear reference controls are available in Single, Joint and Multilayer',as
  await frame.locator('#referenceClear').click();
  await expect(frame.locator('#reference')).toHaveJSProperty('value','');
 });
+
+test('Tutorial fit reliability is consolidated and includes calibrated scientific criteria',async({page})=>{
+ await page.goto(base);
+ await page.locator('#nav_tutorial').click();
+ await expect(page.locator('#tutorial-diagnostics')).toBeVisible();
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Jacobian rank');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Multistart');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('condition-number');
+ await expect(page.getByText('Decision guide · Is my fit good enough?')).toHaveCount(0);
+});
+test('Assisted fit assessment exists across Single, Joint, and embedded Multilayer',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation').locator('summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(page.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#v2-validation-tabs button[data-tab="assisted"]')).toHaveCount(1);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await frame.locator('#v2-science-validation summary').click();
+ await frame.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(frame.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+});
