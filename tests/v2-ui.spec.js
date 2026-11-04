@@ -160,6 +160,7 @@ test('Joint running status identifies selected Joint model, not stale Single mod
  await page.goto(base);
  await page.locator('#workflow').selectOption('joint');
  await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await page.locator('#joint_method').locator('xpath=ancestor::details[1]').evaluate(el=>{el.open=true});
  await page.locator('#joint_method').selectOption('tauc_lorentz');
  await page.evaluate(()=>{window.confirm=()=>true;});
  await page.route('**/api/joint-fit',route=>{}); // Keep request pending to inspect transient running status.
