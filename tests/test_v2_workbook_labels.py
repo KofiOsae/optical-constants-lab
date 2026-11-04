@@ -10,7 +10,7 @@ def test_tauc_lorentz_parameters_have_physical_names_and_units():
         'Oscillator 1 · E0−Eg', 'Oscillator 1 · Broadening C']
     assert [params.cell(i, 3).value for i in range(2, 7)] == coefficients
     assert [params.cell(i, 4).value for i in range(2, 7)] == [
-        'dimensionless', 'model amplitude', 'eV', 'eV', 'eV']
+        'dimensionless', 'eV', 'eV', 'eV', 'eV']
     assert book['Reconstruction'].max_row == 4
 
 def test_spline_export_labels_n_and_k_coefficients_separately():
