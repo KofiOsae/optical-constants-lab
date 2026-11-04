@@ -1,0 +1,30 @@
+name: Independent optical benchmark
+
+on:
+  pull_request:
+    paths:
+      - "tests/test_independent_fresnel_reference.py"
+      - "examples/v2/*.csv"
+      - "docs/validation/independent-synthetic-benchmark.md"
+      - ".github/workflows/independent-optics-benchmark.yml"
+  push:
+    paths:
+      - "tests/test_independent_fresnel_reference.py"
+      - "examples/v2/*.csv"
+      - ".github/workflows/independent-optics-benchmark.yml"
+  workflow_dispatch:
+
+jobs:
+  independent-fresnel:
+    name: Independent Fresnel reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install independent test dependencies only
+        run: python -m pip install "numpy>=1.26,<3" "pytest>=8,<10"
+      - name: Verify all four synthetic examples
+        run: python -m pytest -q tests/test_independent_fresnel_reference.py
