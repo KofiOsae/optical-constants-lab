@@ -79,7 +79,7 @@ function render(){const d=get();const area=section.querySelector('#v2-validation
    const detail=document.createElement('div');detail.textContent=reason;detail.style.cssText='font-size:13px;line-height:1.55;overflow-wrap:anywhere';
    item.append(h,detail);list.append(item);
   }
-  area.prepend(list);
+  area.insertBefore(list,heading.nextSibling);
  }else{area.style.whiteSpace='pre-wrap';area.textContent=report;}
 }catch(error){area.textContent='Validation summary unavailable: '+error.message+'; see browser console for details.';}section.querySelectorAll('button').forEach(b=>{b.style.background=b.dataset.tab===active?'#2879a4':'#233b56'})}
 for(const [key,label] of tabs){const b=document.createElement('button');b.type='button';b.dataset.tab=key;b.textContent=label;b.style.cssText='padding:6px 10px;border:1px solid #6489a6;border-radius:6px;color:#fff';b.onclick=()=>{active=key;render()};section.querySelector('#v2-validation-tabs').append(b)}
