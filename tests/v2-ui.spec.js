@@ -212,3 +212,43 @@ test('Joint project save and load preserves custom Tauc–Lorentz initial guesse
  }
  await expect(page.locator('#status')).toContainText('Saved results restored',{timeout:5000}).catch(()=>{});
 });
+
+test('Collapsible data/reference/diagnostics groups preserve controls in Single and Joint',async({page})=>{
+ await page.goto(base);
+ const upload=page.locator('#single_upload').locator('xpath=parent::details');
+ await expect(upload.locator('summary')).toContainText('Measured spectra');
+ await page.locator('#thickness').fill('135');
+ await upload.locator('summary').click();
+ await expect(upload).not.toHaveAttribute('open','');
+ await upload.locator('summary').click();
+ await expect(page.locator('#thickness')).toHaveValue('135');
+ const reference=page.locator('#reference_ri_file').locator('xpath=parent::details');
+ await expect(reference.locator('summary')).toContainText('Reference optical constants comparison');
+ await reference.locator('summary').click();
+ await reference.locator('summary').click();
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+ await expect(page.locator('#history_view').locator('xpath=ancestor::details[1] > summary')).toContainText('Fit history');
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#files').locator('xpath=ancestor::details[1] > summary')).toContainText('Measured spectra');
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+});
+test('Multilayer reference/settings and numerical diagnostics are collapsible',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#reference').locator('xpath=ancestor::details[1] > summary')).toContainText('Reference optical constants');
+ const summary=frame.locator('#metrics').locator('xpath=ancestor::details[1] > summary');
+ await expect(summary).toContainText('Fit metrics');
+ await summary.click();
+ await summary.click();
+ await expect(frame.locator('#run')).toHaveCount(1);
+ await expect(frame.locator('#reference')).toHaveCount(1);
+});
+test('Assisted scientific assessment uses readable individual status rows',async({page})=>{
+ await page.goto(base);
+ const pane=page.locator('#v2-science-validation');
+ await pane.locator('summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(page.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+ await expect(page.locator('#v2-validation-content p').first()).toContainText('NOT ASSESSED');
+});
