@@ -167,3 +167,19 @@ test('Joint running status identifies selected Joint model, not stale Single mod
  await page.locator('#run').dispatchEvent('click');
  await expect(page.locator('#status')).toContainText('Running tauc_lorentz',{timeout:8000});
 });
+
+test('Near-tied Joint multistart RMSE uses readable relative axis with exact hover values',async({page})=>{
+ await page.goto(base);
+ const details=await page.evaluate(async()=>{
+  const h=[{method:'tauc_lorentz',wrmse:4.7e-9,start_results:[1,2,3,4,5].map((i)=>({
+   initialization:i,weighted_rmse:4.7e-9*(1+i*2e-6),selected:i===2,success:true,nfev:12
+  }))}];
+  fitHistory=h;
+  document.querySelector('#history_view').value='starts';
+  refreshHistory();
+  return {plotly:typeof Plotly!=='undefined'};
+ });
+ if(!details.plotly){test.skip(true,'Plotly unavailable in test browser');return;}
+ await expect.poll(()=>page.locator('#history_plot').evaluate(el=>el.layout?.yaxis?.title?.text)).toBe('RMSE excess vs best (ppm)');
+ await expect(page.locator('#history_plot')).toContainText('RMSE excess vs best');
+});
