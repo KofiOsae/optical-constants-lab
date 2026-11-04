@@ -1,34 +1,52 @@
-/* Private, opt-in quality register for V2. Stores only local counters and categorized failures.
-   No telemetry is transmitted and no raw spectra, filenames, addresses, identities,
-   fitting parameters, or measurements are recorded. */
+/* Anonymous aggregate usage dashboard. No cookies, IDs, fingerprints, IP addresses,
+   filenames, fitted coefficients or uploaded spectra are transmitted by this script.
+   "Visits" count page loads, not distinct visitors. */
 (()=>{'use strict';
 function start(){
- const slot=document.getElementById('ocl-stats-slot')||document.querySelector('nav.main-tabs');if(!slot||document.getElementById('ocl-quality'))return;
- const KEY='ocl-v2-local-quality-v1';
- const read=()=>{try{const v=JSON.parse(localStorage.getItem(KEY)||'{}');return {enabled:!!v.enabled,counts:v.counts||{},failures:v.failures||{}}}catch{return {enabled:false,counts:{},failures:{}}}};
- let state=read();
- const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(state))}catch{}};
- function count(key){if(!state.enabled)return;state.counts[key]=(state.counts[key]||0)+1;save();render()}
- const button=document.createElement('button');button.id='ocl-quality';button.type='button';button.textContent='User statistics';button.title='Optional, local-only usage counts and categorized quality feedback; not a global visitor count.';button.setAttribute('aria-label','User statistics (this device only)');slot.append(button);
- const modal=document.createElement('dialog');modal.id='ocl-quality-dialog';modal.style.cssText='width:min(540px,94vw);max-height:78vh;overflow:auto;background:#14253a;color:#eef5fb;border:1px solid #6186a5;border-radius:12px;padding:18px';
- modal.innerHTML='<h2>User statistics · local quality register</h2><p>Optional, device-local only. No data is transmitted to the laboratory. This is not a count of all users. Raw data, filenames, fit parameters and personal identifiers are never collected automatically.</p><label><input id="ocl-quality-enable" type="checkbox"> Record anonymized interaction counts on this device</label><div id="ocl-quality-counts"></div><p><strong>Log a failure category</strong> (no free text or personal data)</p><select id="ocl-quality-category"><option value="fit">Fit/solver</option><option value="plot">Plots/visualization</option><option value="export">Exports</option><option value="project">Save/Load</option><option value="diagnostic">Diagnostics</option><option value="controls">Controls/layout</option></select><button id="ocl-quality-log" type="button">Record category</button><div id="ocl-quality-failures"></div><div style="display:flex;flex-wrap:wrap;gap:8px"><button id="ocl-quality-export" type="button">Export aggregate JSON</button><button id="ocl-quality-clear" type="button">Clear local records</button><button id="ocl-quality-close" type="button">Close</button></div>';
- document.body.append(modal);
- const $=id=>modal.querySelector('#'+id);
- function render(){
-  $('ocl-quality-enable').checked=state.enabled;
-  $('ocl-quality-counts').textContent='Interaction counts: '+(Object.entries(state.counts).map(([k,v])=>k+': '+v).join(' · ')||'none');
-  $('ocl-quality-failures').textContent='Logged failure categories: '+(Object.entries(state.failures).map(([k,v])=>k+': '+v).join(' · ')||'none');
+ const slot=document.getElementById('ocl-stats-slot')||document.querySelector('nav.main-tabs');
+ if(!slot||document.getElementById('ocl-quality'))return;
+ const button=document.createElement('button');
+ button.id='ocl-quality';button.type='button';button.textContent='User statistics';
+ button.title='Anonymous daily visit and fitting activity (not unique users)';
+ slot.append(button);
+ const dialog=document.createElement('dialog');
+ dialog.id='ocl-quality-dialog';
+ dialog.style.cssText='width:min(760px,96vw);max-height:85vh;overflow:auto;background:#14253a;color:#eef5fb;border:1px solid #6186a5;border-radius:12px;padding:18px';
+ dialog.innerHTML='<h2>User statistics · anonymous aggregate activity</h2><p style="line-height:1.5">Counts page visits, completed fitting requests and exports over time. No visitor identifiers, cookies, IP addresses or uploaded spectra are recorded in the usage database. <strong>Visits are not unique users.</strong> Automated traffic can affect counts.</p><label for="ocl-usage-range">Period</label><select id="ocl-usage-range"><option value="7">Past 7 days</option><option value="30" selected>Past 30 days</option><option value="365">Past 12 months</option></select><div id="ocl-usage-status" role="status" aria-live="polite"></div><div id="ocl-usage-totals" style="display:flex;flex-wrap:wrap;gap:12px;margin:10px 0"></div><div id="ocl-usage-chart" style="height:290px"></div><div id="ocl-usage-workflows"></div><p style="font-size:12px;opacity:.8">A successful fitting API response is counted once. CSV exports and project saves count browser actions. Totals are approximate; no person-level frequency or unique-user tracking occurs.</p><button id="ocl-quality-close" type="button">Close</button>';
+ document.body.append(dialog);
+ const $=id=>dialog.querySelector('#'+id);
+ function send(event){
+   try{fetch('/api/usage/event',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event}),credentials:'omit',cache:'no-store',keepalive:true,referrerPolicy:'no-referrer'}).catch(()=>{})}catch(_){}
  }
- button.onclick=()=>{render();modal.showModal()};
- $('ocl-quality-close').onclick=()=>modal.close();
- $('ocl-quality-enable').onchange=e=>{state.enabled=e.target.checked;save();render()};
- $('ocl-quality-log').onclick=()=>{if(!state.enabled){alert('Enable local recording first.');return}const k=$('ocl-quality-category').value;state.failures[k]=(state.failures[k]||0)+1;save();render()};
- $('ocl-quality-clear').onclick=()=>{if(!confirm('Clear all local quality statistics?'))return;state={enabled:false,counts:{},failures:{}};localStorage.removeItem(KEY);render()};
- $('ocl-quality-export').onclick=()=>{const snapshot={schema:'ocl-v2-local-quality-v1',counts:state.counts,failures:state.failures,scope:'one browser only; no network telemetry'};const url=URL.createObjectURL(new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='optical_lab_anonymous_quality_counts.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
- document.addEventListener('click',e=>{const id=e.target.closest('button')?.id;if(id==='run')count('single_joint_fit_requests');if(id==='download')count('optical_csv_requests');if(id==='download_model_xlsx')count('model_workbook_requests');if(id==='saveWorkspaceProject')count('project_save_requests')},true);
+ let visitSent=false; if(!visitSent){visitSent=true;send('visit')}
+ async function render(){
+  $('ocl-usage-status').textContent='Loading aggregate usage…';
+  try{
+   const response=await fetch('/api/usage/summary?days='+$('ocl-usage-range').value,{cache:'no-store',credentials:'omit'});
+   if(!response.ok)throw Error('Statistics unavailable (HTTP '+response.status+')');
+   const data=await response.json();
+   if(!data.enabled){$('ocl-usage-status').textContent=data.reason||'Persistent aggregate storage is not connected.';$('ocl-usage-totals').replaceChildren();$('ocl-usage-chart').replaceChildren();$('ocl-usage-workflows').textContent='No data have been stored.';return}
+   $('ocl-usage-status').textContent='UTC daily aggregates · '+data.days+' days';
+   const totals=data.totals||{};
+   const cards=[['Visits (page loads)',totals.visit||0],['Completed fit requests',(totals.fit_single||0)+(totals.fit_joint||0)+(totals.fit_multilayer||0)],['Fit requests per visit',totals.visit?(((totals.fit_single||0)+(totals.fit_joint||0)+(totals.fit_multilayer||0))/totals.visit).toFixed(2):'—'],['CSV exports',totals.export_csv||0],['Excel exports',totals.export_excel||0]];
+   $('ocl-usage-totals').replaceChildren(...cards.map(([title,value])=>{const el=document.createElement('div');el.style.cssText='padding:10px;border:1px solid #47627e;border-radius:7px;min-width:126px';const name=document.createElement('div');name.textContent=title;name.style.cssText='font-size:11px;opacity:.8';const number=document.createElement('strong');number.textContent=String(value);number.style.fontSize='22px';el.append(name,number);return el}));
+   const labels=data.daily.map(p=>p.date),visits=data.daily.map(p=>p.visit||0),fits=data.daily.map(p=>(p.fit_single||0)+(p.fit_joint||0)+(p.fit_multilayer||0));
+   if(window.Plotly){window.Plotly.react($('ocl-usage-chart'),[{x:labels,y:visits,name:'Visits',type:'scatter',mode:'lines+markers'},{x:labels,y:fits,name:'Fitted requests',type:'scatter',mode:'lines+markers'}],{title:{text:'Daily activity (UTC)',font:{size:13}},paper_bgcolor:'#14253a',plot_bgcolor:'#14253a',font:{color:'#e7effa',size:11},margin:{l:40,r:12,t:38,b:47},legend:{orientation:'h',y:-.22},xaxis:{automargin:true},yaxis:{rangemode:'tozero',title:'Count',automargin:true}},{responsive:true,displayModeBar:false})}
+   $('ocl-usage-workflows').textContent='Completed fitting requests — Single: '+(totals.fit_single||0)+' · Joint: '+(totals.fit_joint||0)+' · Multilayer: '+(totals.fit_multilayer||0)+' · Project saves: '+(totals.project_save||0);
+  }catch(e){$('ocl-usage-status').textContent='Statistics unavailable: '+e.message}
+ }
+ button.onclick=()=>{dialog.showModal();render()};
+ $('ocl-quality-close').onclick=()=>dialog.close();
+ $('ocl-usage-range').onchange=render;
+ document.addEventListener('click',e=>{
+  const id=e.target.closest('button')?.id;
+  if(id==='download'||id==='export')send('export_csv');
+  if(id==='ocl-top-save')send('project_save');
+ },true);
  const frame=document.getElementById('multilayer_frame');
- frame?.addEventListener('load',()=>{try{frame.contentDocument?.addEventListener('click',e=>{const id=e.target.closest('button')?.id;if(id==='run')count('multilayer_fit_requests');if(id==='exportModelExcel')count('multilayer_workbook_requests')},true)}catch{}});
- render();
+ frame?.addEventListener('load',()=>{
+  try{frame.contentDocument?.addEventListener('click',e=>{const id=e.target.closest('button')?.id;if(id==='export')send('export_csv')},true)}catch(_){}
+ });
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();

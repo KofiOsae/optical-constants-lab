@@ -13,6 +13,8 @@ app=Flask(__name__,static_folder='web',static_url_path='')
 app.config['MAX_CONTENT_LENGTH']=2_000_000
 from multilayer_api import multilayer_api
 app.register_blueprint(multilayer_api)
+from usage_aggregate import usage_api
+app.register_blueprint(usage_api)
 DATA=ROOT/'data'/'R6G_Singh.csv'
 
 def reference():
