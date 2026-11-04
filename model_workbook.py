@@ -115,8 +115,30 @@ def build_numerical_model_workbook(model, coefficients, wavelengths_nm, metadata
     n,k=z.real,z.imag
     wb=Workbook()
     params=wb.active;params.title='Parameters'
-    params.append(['Index','Coefficient','Value'])
-    for i,v in enumerate(p):params.append([i,'p'+str(i),float(v)])
+    params.append(['Index','Coefficient','Value','Units'])
+    # Keep the parameter ordering identical to organic_dielectric() and the
+    # optimizer vector. Do not label physical coefficients as opaque p0/p1.
+    labels=[('Background ε∞','dimensionless')]
+    organic_names={
+        'tauc_lorentz':[('Amplitude A','eV'),('Optical gap Eg','eV'),('E0−Eg','eV'),('Broadening C','eV')],
+        'modified_lorentz':[('Strength','dimensionless'),('Resonance E0','eV'),('Width','eV'),('Broad-component fraction','dimensionless')],
+        'kk_gaussian':[('Strength','dimensionless'),('Resonance E0','eV'),('Gaussian sigma','eV')],
+        'voigt':[('Strength','dimensionless'),('Resonance E0','eV'),('Lorentz gamma','eV'),('Gaussian sigma','eV')],
+        'vibronic':[('Strength','dimensionless'),('0–0 transition E00','eV'),('Vibrational energy','eV'),('Linewidth gamma','eV'),('Huang–Rhys factor','dimensionless')],
+    }
+    if model in organic_names:
+        for j in range(oscillators):
+            labels.extend((f'Oscillator {j+1} · {name}',unit) for name,unit in organic_names[model])
+    elif model=='spline':
+        count=len(p)//2
+        labels=[(f'n spline basis {j+1}','dimensionless') for j in range(count)]
+        labels.extend((f'k spline basis {j+1}','dimensionless') for j in range(count))
+    elif model=='kk_constrained':
+        labels=[('Background ε∞','dimensionless')]
+        labels.extend((f'KK basis {j+1} · strength','dimensionless') for j in range(len(p)-1))
+    if len(labels)!=len(p):raise ValueError('Parameter label count does not match the fitted coefficient vector')
+    for i,(value,(name,unit)) in enumerate(zip(p,labels)):
+        params.append([i,name,float(value),unit])
     vals=wb.create_sheet('Reconstruction')
     vals.append(['wavelength_nm','epsilon_real','epsilon_imag','n','k','alpha_cm_inverse'])
     for wl,e,nv,kv in zip(w,eps,n,k):

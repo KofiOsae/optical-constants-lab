@@ -59,7 +59,93 @@ if(tab==='fit'){const preds=d.predictions||[];return 'Global weighted RMSE: '+fm
 if(tab==='reliability'){const sens=d.sensitivity||{};const lines=['Jacobian rank: '+(sens.rank??'Not reported'),'Fitted parameters: '+(sens.parameters??'Not reported'),'Jacobian condition number: '+fmt(sens.condition_number),'Local standard errors: '+(Array.isArray(sens.parameter_standard_errors_local)?sens.parameter_standard_errors_local.map(fmt).join(', '):'Not reported')];if(sens.identifiability_warnings?.length)lines.push('Warnings: '+sens.identifiability_warnings.join(' | '));const starts=d.stages?.start_results||[];const m=d.multistart||{};const ambiguity=d.ambiguity||{};if(starts.length){const scores=starts.map(x=>Number(x.weighted_rmse)).filter(Number.isFinite);lines.push('Multistart runs: '+starts.length+'; weighted RMSE range: '+(scores.length?Math.min(...scores).toPrecision(4)+'–'+Math.max(...scores).toPrecision(4):'Not reported'))}else if(m.attempts){lines.push('Multistart attempts: '+m.attempts+'; distinct near-optimal branches: '+(ambiguity.near_optimal_branches??'Not reported')+'; interpretation: '+(ambiguity.status||'Unreported'))}else lines.push('Multi-start stability: not measured in this run.');lines.push('Thickness-profile and wavelength-window stability need separate refits; one fitted solution cannot provide those tests.');return lines.join('\n')}
 if(tab==='physics'){const w=d.wavelength_nm||[],n=d.n||[],k=d.k||[];let minK=k.length?Math.min(...k):null;const preds=d.predictions||[];let maxExcess=null;for(const p of preds){const R=p.R_fit,T=p.T_fit;if(Array.isArray(R)&&Array.isArray(T)){for(let j=0;j<Math.min(R.length,T.length);j++){const excess=Number(R[j])+Number(T[j])-1;if(Number.isFinite(excess))maxExcess=Math.max(maxExcess??-Infinity,excess)}}}return 'Minimum recovered extinction k: '+(minK===null?'Not reported':fmt(minK))+'\nMaximum (R_fit + T_fit − 1), if available: '+(maxExcess===null?'Not reported':fmt(maxExcess))+'\nNote: these checks assume normalized flux and passive stack conventions. KK/SSKK finite-band comparisons are separate diagnostics and are not proofs of causality. Absorbing substrates need special interpretation.'}
 return 'Out-of-sample predictive validation must be based on a deliberately excluded measurement, or a separately generated reference forward solution.\n'+(d.holdout?'Holdout information present in fit result. Inspect its explicit prediction metrics.':'No explicit held-out validation confirmed from this result.')+'\nModel comparison (AICc/BIC), spectral-window stability, and multi-start consistency are not automatically calculated by this summary.'}
-function render(){const d=get();const area=section.querySelector('#v2-validation-content');if(!area)return;try{area.textContent=text(d,active)}catch(error){area.textContent='Validation summary unavailable: '+error.message+'; see browser console for details.';}section.querySelectorAll('button').forEach(b=>{b.style.background=b.dataset.tab===active?'#2879a4':'#233b56'})}
+function render(){const d=get();const area=section.querySelector('#v2-validation-content');if(!area)return;try{
+ const report=text(d,active);
+ if(active==='assisted'){
+  area.replaceChildren();
+  area.style.whiteSpace='normal';
+  const lines=report.split('\n');
+  const heading=document.createElement('p');heading.textContent=lines.shift()||'Assisted assessment';heading.style.cssText='font-weight:700;margin:0 0 12px;color:#e4f0ff';area.append(heading);
+  const list=document.createElement('div');list.style.cssText='display:grid;gap:8px';
+  for(const line of lines){
+   if(!line.trim())continue;
+   const sep=line.indexOf(' · '),colon=line.indexOf(': ',sep+3);
+   if(sep<0||colon<0){const p=document.createElement('p');p.textContent=line;p.style.cssText='margin:8px 0;line-height:1.55';area.append(p);continue}
+   const status=line.slice(0,sep),label=line.slice(sep+3,colon),reason=line.slice(colon+2);
+   const item=document.createElement('div');item.style.cssText='border:1px solid #405a72;border-radius:7px;padding:10px;background:rgba(12,28,48,.46)';
+   const h=document.createElement('div');h.style.cssText='font-weight:650;margin-bottom:5px';
+   const tag=document.createElement('span');tag.textContent=status;tag.style.cssText='display:inline-block;font-size:11px;font-weight:700;letter-spacing:.02em;padding:2px 5px;margin-right:8px;border:1px solid #718ba6;border-radius:4px';
+   const name=document.createElement('span');name.textContent=label;h.append(tag,name);
+   const detail=document.createElement('div');detail.textContent=reason;detail.style.cssText='font-size:13px;line-height:1.55;overflow-wrap:anywhere';
+   item.append(h,detail);list.append(item);
+  }
+  area.insertBefore(list,heading.nextSibling);
+ }else{area.style.whiteSpace='pre-wrap';area.textContent=report;}
+}catch(error){area.textContent='Validation summary unavailable: '+error.message+'; see browser console for details.';}section.querySelectorAll('button').forEach(b=>{b.style.background=b.dataset.tab===active?'#2879a4':'#233b56'})}
 for(const [key,label] of tabs){const b=document.createElement('button');b.type='button';b.dataset.tab=key;b.textContent=label;b.style.cssText='padding:6px 10px;border:1px solid #6489a6;border-radius:6px;color:#fff';b.onclick=()=>{active=key;render()};section.querySelector('#v2-validation-tabs').append(b)}
 section.addEventListener('toggle',()=>{if(section.open)render()});document.addEventListener('ocl-fit-complete',render);render();
 }if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();
+/* Cross-workflow collapsible groups. Move existing DOM controls without cloning or
+   changing element IDs: event listeners, file inputs, results and save/load state survive. */
+(()=>{'use strict';
+function init(){
+ const one=id=>document.getElementById(id);
+ function group(parent,items,label,open=true){
+  const nodes=items.filter(Boolean).filter(n=>n.parentElement===parent);
+  if(!nodes.length)return null;
+  const details=document.createElement('details');details.className='v2-collapse-group';details.open=open;
+  details.style.cssText='border:1px solid #486078;border-radius:8px;padding:9px;margin:9px 0;min-width:0';
+  const summary=document.createElement('summary');summary.textContent=label;
+  summary.style.cssText='font-weight:650;cursor:pointer;padding:4px 2px';
+  parent.insertBefore(details,nodes[0]);details.append(summary,...nodes);
+  details.addEventListener('toggle',()=>{
+   if(!details.open||!window.Plotly?.Plots?.resize)return;
+   requestAnimationFrame(()=>details.querySelectorAll('.js-plotly-plot').forEach(plot=>{
+    try{window.Plotly.Plots.resize(plot)}catch(_){}
+   }));
+  });
+  return details;
+ }
+ const isMulti=!!one('controls')&&!!one('diagnostics')&&!one('single_upload');
+ if(!isMulti){
+  const single=one('single_upload'),joint=one('joint_upload');
+  if(single&&joint&&single.parentElement===joint.parentElement)
+   group(single.parentElement,[single,joint],'Measured spectra · import and preview',true);
+  const ref=one('reference_ri_file')?.closest('.panel');
+  if(ref&&ref.querySelector('h3')?.textContent.includes('Reference optical constants comparison')){
+   const title=ref.querySelector('h3');title.remove();
+   const d=document.createElement('details');d.open=true;d.className='v2-collapse-group';
+   d.style.cssText='min-width:0';
+   const summary=document.createElement('summary');summary.textContent='Reference optical constants comparison';summary.style.cssText='cursor:pointer;font-weight:700';
+   while(ref.firstChild)d.append(ref.firstChild);
+   d.prepend(summary);ref.append(d);
+  }
+  const diagnostics=document.querySelector('aside.diagnostics');
+  if(diagnostics){
+   group(diagnostics,[one('metrics'),one('diagnostic_notes')],'Fit metrics and diagnostic interpretation',true);
+   const history=one('history_view')?.closest('section');
+   if(history&&history.parentElement===diagnostics){
+    const heading=history.querySelector('h3');if(heading)heading.remove();
+    group(diagnostics,[history],'Fit history · RMSE and starting solutions',true);
+   }
+   const review=one('review');
+   if(review&&review.parentElement===diagnostics)group(diagnostics,[review],'Phase I inspection',true);
+  }
+ }else{
+  const controls=one('controls');
+  if(controls){
+   for(const fieldset of controls.querySelectorAll(':scope > fieldset')){
+    if(fieldset.closest('details'))continue;
+    const label=fieldset.querySelector(':scope > legend')?.textContent?.trim()||'Data & settings';
+    group(controls,[fieldset],label,true);
+   }
+  }
+  const diagnostics=one('diagnostics');
+  if(diagnostics){
+   group(diagnostics,[one('metrics'),one('rmsePlot')],'Fit metrics and RMSE',true);
+   group(diagnostics,[one('multistartPlot'),one('branchsummary')],'Multistart and solution reliability',true);
+  }
+ }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
