@@ -216,28 +216,28 @@ test('Joint project save and load preserves custom Tauc–Lorentz initial guesse
 test('Collapsible data/reference/diagnostics groups preserve controls in Single and Joint',async({page})=>{
  await page.goto(base);
  const upload=page.locator('#single_upload').locator('xpath=parent::details');
- await expect(upload.locator('summary')).toContainText('Measured spectra');
+ await expect(upload.locator(':scope > summary')).toContainText('Measured spectra');
  await page.locator('#thickness').fill('135');
- await upload.locator('summary').click();
+ await upload.locator(':scope > summary').click();
  await expect(upload).not.toHaveAttribute('open','');
- await upload.locator('summary').click();
+ await upload.locator(':scope > summary').click();
  await expect(page.locator('#thickness')).toHaveValue('135');
  const reference=page.locator('#reference_ri_file').locator('xpath=parent::details');
- await expect(reference.locator('summary')).toContainText('Reference optical constants comparison');
- await reference.locator('summary').click();
- await reference.locator('summary').click();
+ await expect(reference.locator(':scope > summary')).toContainText('Reference optical constants comparison');
+ await reference.locator(':scope > summary').click();
+ await reference.locator(':scope > summary').click();
  await expect(page.locator('#reference_ri_file')).toHaveCount(1);
- await expect(page.locator('#history_view').locator('xpath=ancestor::details[1] > summary')).toContainText('Fit history');
+ await expect(page.locator('#history_view').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Fit history');
  await page.locator('#workflow').selectOption('joint');
- await expect(page.locator('#files').locator('xpath=ancestor::details[1] > summary')).toContainText('Measured spectra');
+ await expect(page.locator('#files').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Measured spectra');
  await expect(page.locator('#reference_ri_file')).toHaveCount(1);
 });
 test('Multilayer reference/settings and numerical diagnostics are collapsible',async({page})=>{
  await page.goto(base);
  await page.locator('#workflow').selectOption('multilayer');
  const frame=page.frameLocator('#multilayer_frame');
- await expect(frame.locator('#reference').locator('xpath=ancestor::details[1] > summary')).toContainText('Reference optical constants');
- const summary=frame.locator('#metrics').locator('xpath=ancestor::details[1] > summary');
+ await expect(frame.locator('#reference').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Reference optical constants');
+ const summary=frame.locator('#metrics').locator('xpath=ancestor::details[1]').locator(':scope > summary');
  await expect(summary).toContainText('Fit metrics');
  await summary.click();
  await summary.click();
