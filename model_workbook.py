@@ -120,7 +120,7 @@ def build_numerical_model_workbook(model, coefficients, wavelengths_nm, metadata
     # optimizer vector. Do not label physical coefficients as opaque p0/p1.
     labels=[('Background ε∞','dimensionless')]
     organic_names={
-        'tauc_lorentz':[('Amplitude A','model amplitude'),('Optical gap Eg','eV'),('E0−Eg','eV'),('Broadening C','eV')],
+        'tauc_lorentz':[('Amplitude A','eV'),('Optical gap Eg','eV'),('E0−Eg','eV'),('Broadening C','eV')],
         'modified_lorentz':[('Strength','dimensionless'),('Resonance E0','eV'),('Width','eV'),('Broad-component fraction','dimensionless')],
         'kk_gaussian':[('Strength','dimensionless'),('Resonance E0','eV'),('Gaussian sigma','eV')],
         'voigt':[('Strength','dimensionless'),('Resonance E0','eV'),('Lorentz gamma','eV'),('Gaussian sigma','eV')],
