@@ -21,7 +21,7 @@ def test_organic_passivity_and_finite_nk(model,p):
 
 def test_zero_strength_is_constant_background():
     for model,size in MODEL_PARAMETER_COUNTS.items():
-        params={"modified_lorentz":[0,2,.2,.3],"kk_gaussian":[0,2,.2],
+        params={"tauc_lorentz":[0,1.2,.8,.2],"modified_lorentz":[0,2,.2,.3],"kk_gaussian":[0,2,.2],
                 "voigt":[0,2,.1,.2],"vibronic":[0,2,.2,.1,.5]}[model]
         assert len(params)==size
         eps=organic_dielectric(np.array([400.,800.]),[2.25,*params],model)

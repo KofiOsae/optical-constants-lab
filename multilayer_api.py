@@ -145,6 +145,8 @@ def multilayer_joint_fit():
             fit_thickness=fit_thickness,thickness_bounds=bounds,
             optical_bounds=tuple(float(request.form.get(key,default)) for key,default in [('n_min',.5),('n_max',6.),('k_min',0.),('k_max',5.)]),
             max_nfev=min(1000,max(10,int(request.form.get('max_nfev',250)))),
+            multistart_count=int(request.form.get('multistart_count',4)),
+            multistart_seed=int(request.form.get('multistart_seed',20261101)),
             initial_parameters=initial,initial_reference=expanded_warm,
             parameter_controls=json.loads(request.form['oscillator_parameters']) if request.form.get('oscillator_parameters') else None,
             fit_interface_mixing=request.form.get('fit_interface_mixing','false')=='true',

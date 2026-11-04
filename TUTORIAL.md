@@ -1,7 +1,15 @@
+## Classical Tauc versus Tauc–Lorentz — choose the correct tool
+
+**Classical · Tauc optical gap** is a post-processing band-edge estimate based on a Tauc plot derived from absorption (often approximated from transmission). It does **not** reconstruct a causal complex refractive index and does not replace coherent-film R/T modeling. Its gap estimate depends on the assumed transition exponent and selected approximately linear energy range; interference, scattering and substrate contributions can bias it.
+
+**Tauc–Lorentz (amorphous absorption edge)** is a parametric dielectric dispersion model fitted to R/T with the optical stack. It returns n(λ), k(λ), and model parameters ε∞, A, Eg, E0−Eg and broadening C. It is available for Single, Joint, and Multilayer; use **one oscillator** for the supplied 180/300 nm benchmark with Eg=1.50 eV, A=18, E0−Eg=1.20 eV, C=0.32 eV, ε∞=2.35. In Single use Extraction method → Tauc–Lorentz; in Joint use Joint fitting method → Tauc–Lorentz; in Multilayer use Dispersion model → Tauc–Lorentz. If the Joint dropdown does not show it, that is an interface issue, not a reason to select Classical Tauc.
+
+Both tools estimate a quantity called an optical gap, but their assumptions and inverse problems are different. Their estimates need not agree, particularly with limited spectral coverage, indirect absorption proxies or strongly correlated thickness/dispersion parameters. The numerical TL KK real part uses finite-range quadrature and requires independent reference verification.
+
 # Optical Constants Laboratory — Theory and Guided Tests
 
 ## 1. Scope and status
-This prototype provides a coherent single-film Fresnel forward model and a regularized B-spline inverse model for four synthetic R6G cases. The supplied R6G optical constants are a reference *for numerical recovery*, not independent experimental truth. The following methods are **not implemented** in this version: original Swanepoel envelope extraction, causal Lorentz/KK inversion, measurement-file upload, calibrated uncertainty intervals, and automated measurement design.
+This tutorial originated with the early single-film prototype. The laboratory has since expanded to Single, Joint and Multilayer workflows, measured-data upload, causal dispersion fits, and finite-band KK/SSKK diagnostics. Read each method's current UI and validation notes for availability; some traditional methods and full calibration/uncertainty claims remain out of scope. Synthetic examples are forward-model demonstrations, not independent experimental ground truth.
 
 ## 2. Definitions and sign convention
 Use the time convention exp(-i omega t) and complex index N=n+ik with k>=0 for passive materials. The absorption coefficient is alpha=4 pi k/lambda. Single-pass intensity attenuation is exp(-alpha d), which is not the full thin-film transmittance because it neglects interfaces and interference.
@@ -238,3 +246,68 @@ Upload 500 nm and 1000 nm reflectance/transmittance spectra; use the exact incid
 ### Workspace operations
 
 The Multilayer workspace supports **bulk spectra selection** that creates or populates sample entries (filenames containing a thickness such as `500nm` propose nominal thickness), sample collapse/expand, separately scrollable columns with adjustable widths, and portable JSON project export/import including uploaded CSV contents, layer configuration and latest results. Project files may contain proprietary spectra; handle them accordingly. After reloading a project, review all experimental geometry and numerical settings before refitting. Browsers require the user to explicitly select a saved project for import; files are not automatically uploaded to an external account.
+
+
+## V2 guided examples and laboratory-wide presentation policy
+
+Three transparent/absorbing synthetic forward-model CSV exercises, their source equations, use instructions, and test criteria are available at [examples/v2/README.md](examples/v2/README.md). Open **Guided example datasets · v2** in the application to download data. These are unmeasured synthetic spectra and must never be presented as literature spectra. Follow the sample-geometry → preview → model selection → constrained inversion → R/T and n,k validation → publication path described above. Separate visual components should be collapsible; Plotly scientific plots and recovered data receive priority in the layout. Export panels are optional; avoid duplicated settings across Single/Joint/Multilayer. No changes to the published v1.0.0 tag are implied by v2 development.
+
+
+## V2 Tauc–Lorentz dispersion and scientific-validation panel
+
+The **Tauc–Lorentz** option is available in Single, Joint, and Multilayer, using the same shared dielectric evaluator. It is intended primarily for amorphous semiconductors and optical-absorption-edge systems, **not** an automatic best choice for all molecular dyes. For each oscillator, parameters are amplitude `A ≥ 0`, optical gap `Eg > 0` (eV), positive separation `E0 − Eg`, and broadening `C > 0` (eV), with an additive positive background `epsilon_inf`. The imaginary part is identically zero for photon energies at or below `Eg`; the real part uses a numerical finite-energy KK principal-value quadrature truncated above the spectral band. Thus, accuracy depends on quadrature and assumed high-energy tails; this is an **approximate finite quadrature implementation**, not a claim of exact Jellison–Modine analytic evaluation. In multi-oscillator fits, per-oscillator gaps are independently parameterized; constrain them based on physics if a common edge is required. Fit `Eg` only when the measured spectral range actually brackets the absorption edge. Residual fitting, correlation and multiple initialization checks remain essential.
+
+The compact **Scientific validation · v2** section has four tabs: Fit quality, Reliability, Physics, and Prediction. It summarizes existing fit errors, Jacobian SVD diagnostics where provided, passivity/energy-budget checks, and explicitly reports when held-out validation or multistart evidence is not present. Displaying a tab does not imply an independent validation was performed. The Jellison–Modine form was introduced in *Applied Physics Letters* (1996), and external analytic-reference comparison remains required before v2 acceptance.
+
+For a synthetic TL exercise, run `python examples/v2/generate_tauc_lorentz.py` from the repository root. It generates R/T and reference n,k CSV files for 180 nm film on n=1.46 substrate, with `[epsilon_inf,A,Eg,E0−Eg,C]=[2.35,18,1.50,1.20,0.32]` (energies eV). Upload R/T in Single and select Tauc–Lorentz, 1 oscillator, nominal thickness 180 nm, substrate 1.46, noise 0, mixing 0. Compare recovered n,k and Eg to the generated reference, then attempt Joint/Multilayer fits with a separately generated thickness sample. These synthetic data are generated using the laboratory's own implementation and do not constitute independent verification of the TL formula.
+
+
+## V2 parity and publication workflow (November 2026)
+
+### Experimental geometry
+The **ambient** medium is the half-space from which light is incident (typically air, n=1). A **backing** medium exists beyond an explicitly finite coherent substrate, typically air. It is not the substrate itself and does not affect a semi-infinite substrate model. The laboratory does not automatically include incoherent backside reflections of optically thick substrates; do not interpret a fitted effective mixing thickness as RMS roughness.
+
+### Standard analysis flow
+1. Choose Single, Joint or Multilayer; upload R/T spectra. A unique thickness token in the filename (e.g. `film_150nm_TE.csv` or `film_0.15um_TE.csv`) seeds nominal thickness; confirm it against sample records. Explicitly set wavelength and signal units and substrate/ambient conditions.
+2. Inspect and validate the raw spectra. Select a physical dispersion model, initial parameters, bounds and noise assumptions. If useful, fit an informative **short- or long-wavelength band first**, inspect the recovered dispersion, and extend to the full domain; warm parameter transfer is model-dependent and must not be assumed for every method.
+3. Fit and compare extracted n,k with reconstructed R,T for each input sample. Joint analysis uses shared optical constants with independent sample geometries. A held-out sample must not enter parameter fitting or tuning.
+4. Use the **one active optical-property plot** to select n,k, dielectric ε1/ε2, absorption coefficient, absorption length and group index; any uploaded reference optical constants are independent overlays and not an inversion constraint. Derivatives in n_g are sensitive to noise and near resonances.
+5. Review residuals, convergence, alternative multistart solutions, Jacobian conditioning, fit history, and finite-band KK/SSKK where applicable. KK/SSKK diagnostics do **not** prove a material model is causal merely because an overlay is close.
+6. Export the original input project, reconstructed spectra, optical-property CSV and publication figures. A fitted **Lorentz or Drude–Lorentz** model can additionally produce a formula-based Excel parameter workbook; other families require additional model-specific reconstruction before any such workbook can be claimed. The workbook recalculates when opened in a spreadsheet application; predicted R/T also requires the correct stack and substrate.
+
+### Reproducible teaching and release tests
+Use `examples/v2/ACCEPTANCE_CHECKLIST.md` with the transparent single (120 nm), joint (120/240 nm), absorbing (180 nm) and capped multilayer (50 nm/150 nm) examples. Verify (R+T\approx 1) only for passive lossless structures, and distinguish a low R/T residual from unique parameter recovery. The example files are synthetic; neither these examples nor an optimizer's success status constitute independent experimental validation.
+
+### Save plot
+**Save plot** exports the **currently selected view** (including displayed overlays, axis labels, legends and units), as an image suitable for reports. It does not refit the model or save a complete project. Use Save project and numerical CSV for independently reusable data and parameters.
+
+### End-to-end decision flowchart
+
+```mermaid
+flowchart TD
+    A[Upload R/T data and inspect wavelength / signal units] --> B[Confirm ambient, film thickness and substrate model]
+    B --> C{How many specimens / layers?}
+    C -->|One film| D[Single Spectrum]
+    C -->|Shared material in multiple specimens| E[Joint Spectrum]
+    C -->|Known-layer stack| F[Multilayer]
+    D --> G[Choose dispersion model and parameter bounds]
+    E --> G
+    F --> G
+    G --> H{Informative initial wavelength band?}
+    H -->|Yes| I[Progressive Stage 1 then extend]
+    H -->|No| J[Fit selected range]
+    I --> K[Inspect n/k, reconstructed R/T and residuals]
+    J --> K
+    K --> L{Scientific checks acceptable?}
+    L -->|No| M[Review geometry, ambiguity, optimizer and model assumptions]
+    M --> G
+    L -->|Yes| N[Reference comparison, holdout and reproducibility]
+    N --> O[Export optical CSV, project, figures and applicable model workbook]
+```
+
+This chart describes the recommended scientific workflow, not a promise that every model supports exact parameter transfer or a formula-based external workbook. Inspect the interface for method-specific limitations.
+
+
+### Training data fingerprint (SHA-256)
+
+For Joint fitting, the `training_fingerprint` field in the fit-history CSV and workbook metadata is a SHA-256 identifier computed from the **training** R/T arrays and measurement geometry (including sample thickness, optical substrate properties and measurement configuration). It intentionally excludes the original filenames and optimizer choice. A matching fingerprint indicates the same encoded training problem, not that the optimizer, dispersion model, initial values, bounds, code version or recovered n,k are the same. Save the complete project and model parameters alongside the fingerprint for reproducibility. The workbook displays **Training data fingerprint (SHA-256)** and a short description; the history CSV retains the machine-readable `training_fingerprint` column.

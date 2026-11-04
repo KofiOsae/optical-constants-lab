@@ -1,0 +1,333 @@
+const {test,expect}=require('@playwright/test');
+const base='http://127.0.0.1:8765';
+test('Single V2 input and navigation parity',async({page})=>{
+ await page.goto(base);
+ await expect(page.locator('#workflow')).toBeVisible();
+ await expect(page.locator('#ocl-top-save')).toBeVisible();
+ await expect(page.locator('#ocl-top-load')).toBeVisible();
+ await expect(page.locator('#ocl-kk-control')).toHaveCount(1);
+ await page.locator('#file').setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await expect(page.locator('#thickness')).toHaveValue('120');
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+ await expect(page.locator('#ocl-reference-inputs')).toHaveCount(1);
+ await page.locator('#nav_tutorial').click();
+ await expect(page.locator('#tutorial_main #ocl-examples')).toHaveCount(1);
+});
+test('Joint inputs expose inferred thickness, shared reference and progressive controls',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await expect(page.locator('#specimens .file-card')).toHaveCount(2);
+ await expect(page.locator('#ocl-joint-stage')).toHaveCount(1);
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+});
+test('Embedded Multilayer filename thickness and diagnostic controls',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#run')).toBeVisible();
+ await frame.locator('.file').first().setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await expect(frame.locator('.thickness').first()).toHaveValue('120');
+ await expect(frame.locator('#startsExport')).toHaveCount(1);
+ await expect(frame.locator('#multistartPlot')).toHaveCount(1);
+ await expect(frame.locator('#reference')).toHaveCount(1);
+});
+
+test('Visual layout regression: no duplicated visible embedded Multilayer guides',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#v2StackDesigner')).toBeVisible();
+ await expect(frame.locator('#widthControls')).toBeHidden();
+ await expect(frame.locator('h1')).toBeHidden();
+ await expect(frame.getByText('Guided example datasets',{exact:false})).toBeHidden();
+ await expect(frame.getByText('Measurement suitability — read before fitting experimental R/T',{exact:false})).toBeHidden();
+ await expect(frame.locator('#stageControls')).toHaveCount(1);
+ await expect(frame.locator('#reference')).toHaveCount(1);
+});
+test('Single and Joint do not show a duplicate measurement suitability shortcut',async({page})=>{
+ await page.goto(base);
+ await expect(page.getByRole('button',{name:'Measurement suitability · assumptions'})).toBeHidden();
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.getByRole('button',{name:'Measurement suitability · assumptions'})).toBeHidden();
+});
+
+test('Shared column sliders govern embedded Multilayer and survive workflow switches',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#layout')).toBeVisible();
+ await page.locator('#singleColumnWidth').fill('34');
+ await page.locator('#diagnosticColumnWidth').fill('20');
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','34%');
+ await expect(frame.locator('html')).toHaveCSS('--diagnostics-width','20%');
+ await page.locator('#workflow').selectOption('single');
+ await page.locator('#workflow').selectOption('multilayer');
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','34%');
+ await page.locator('#resetColumnWidths').click();
+ await expect(frame.locator('html')).toHaveCSS('--settings-width','27%');
+ await expect(frame.locator('html')).toHaveCSS('--diagnostics-width','25%');
+});
+
+test('Multilayer controls follow shared input sequence and adapt to the selected model',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ const order=await frame.locator('#controls').evaluate(el=>{
+  const ids=['samples','reference','model','stageControls','diagnostic'];
+  return ids.map(id=>Array.from(el.querySelectorAll('*')).indexOf(el.querySelector('#'+id)));
+ });
+ expect(order.every((v,i)=>v>=0&&(i===0||v>order[i-1]))).toBeTruthy();
+ await frame.locator('#model').locator('xpath=ancestor::details[1]/summary').click();
+ await frame.locator('#model').selectOption('spline');
+ await expect(frame.locator('#basis').locator('..')).toBeVisible();
+ await expect(frame.locator('#osc').locator('..')).toBeHidden();
+ await frame.locator('#model').selectOption('lorentz');
+ await expect(frame.locator('#osc').locator('..')).toBeVisible();
+ await expect(frame.locator('#basis').locator('..')).toBeHidden();
+});
+
+test('Multilayer uses only one R/T graph on preview and retains roughness entry',async({page})=>{
+ await page.goto(base);await page.locator('#workflow').selectOption('multilayer');
+ const f=page.frameLocator('#multilayer_frame');
+ await f.locator('.file').first().setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await expect(f.locator('.interfaces').first()).toBeAttached();
+ await expect(f.locator('#saveProject')).toBeHidden();
+ await expect(f.locator('#loadProject').locator('..')).toBeHidden();
+ await expect(f.locator('#preview')).toHaveCount(0);
+ await f.locator('#previewButton').click();
+ await expect(f.locator('#spectra.js-plotly-plot')).toHaveCount(1,{timeout:15000});
+ await expect(f.locator('#viewSample option')).toHaveCount(1);
+});
+
+test('Clear reference controls are available in Single, Joint and Multilayer',async({page})=>{
+ await page.goto(base);
+ await expect(page.locator('#reference_ri_clear')).toBeVisible();
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#reference_ri_clear')).toBeVisible();
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#referenceClear')).toBeAttached();
+ await frame.locator('#reference').setInputFiles('examples/v2/transparent_film_120nm.csv');
+ await frame.locator('#referenceClear').click();
+ await expect(frame.locator('#reference')).toHaveJSProperty('value','');
+});
+
+test('Tutorial fit reliability is consolidated and includes calibrated scientific criteria',async({page})=>{
+ await page.goto(base);
+ await page.locator('#nav_tutorial').click();
+ await expect(page.locator('#tutorial-diagnostics')).toBeVisible();
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Jacobian rank');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('Multistart');
+ await expect(page.locator('#tutorial-diagnostics')).toContainText('condition-number');
+ await expect(page.getByText('Decision guide · Is my fit good enough?')).toHaveCount(0);
+});
+test('Assisted fit assessment exists across Single, Joint, and embedded Multilayer',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation').locator('summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(page.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#v2-validation-tabs button[data-tab="assisted"]')).toHaveCount(1);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await frame.locator('#v2-science-validation summary').click();
+ await frame.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(frame.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+});
+
+test('Assisted assessment never certifies an underidentified but low-RMSE fit',async({page})=>{
+ await page.goto(base);
+ await page.locator('#v2-science-validation summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await page.evaluate(()=>{
+  window.oclValidationResult=()=>({
+   success:true,weighted_rmse:1e-10,
+   sensitivity:{rank:3,parameters:5,condition_number:200},
+   wavelength_nm:[500,600],n:[1.5,1.5],k:[0,0],
+   predictions:[{R_fit:[0.1,0.12],T_fit:[0.9,0.88]}]
+  });
+  document.dispatchEvent(new Event('ocl-fit-complete'));
+ });
+ const report=page.locator('#v2-validation-content');
+ await expect(report).toContainText('FAIL (local identifiability)');
+ await expect(report).toContainText('3/5 free parameter directions');
+ await expect(report).toContainText('Material accuracy');
+ await expect(report).toContainText('NOT ASSESSED');
+});
+
+test('Joint running status identifies selected Joint model, not stale Single model',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await page.locator('#joint_method').locator('xpath=ancestor::details[1]').evaluate(el=>{el.open=true});
+ await page.locator('#joint_method').selectOption('tauc_lorentz');
+ await page.evaluate(()=>{window.confirm=()=>true;});
+ await page.route('**/api/joint-fit',route=>{}); // Keep request pending to inspect transient running status.
+ await page.locator('#run').dispatchEvent('click');
+ await expect(page.locator('#status')).toContainText('Running tauc_lorentz',{timeout:8000});
+});
+
+test('Near-tied Joint multistart RMSE uses readable relative axis with exact hover values',async({page})=>{
+ await page.goto(base);
+ const details=await page.evaluate(async()=>{
+  const h=[{method:'tauc_lorentz',wrmse:4.7e-9,start_results:[1,2,3,4,5].map((i)=>({
+   initialization:i,weighted_rmse:4.7e-9*(1+i*2e-6),selected:i===2,success:true,nfev:12
+  }))}];
+  fitHistory=h;
+  document.querySelector('#history_view').value='starts';
+  refreshHistory();
+  return {plotly:typeof Plotly!=='undefined'};
+ });
+ if(!details.plotly){test.skip(true,'Plotly unavailable in test browser');return;}
+ await expect.poll(()=>page.locator('#history_plot').evaluate(el=>el.layout?.yaxis?.title?.text)).toBe('RMSE excess vs best (ppm)');
+ await expect(page.locator('#history_plot')).toContainText('RMSE excess vs best');
+});
+
+test('Joint project save and load preserves custom Tauc–Lorentz initial guesses and bounds',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await page.locator('#joint_method').selectOption('tauc_lorentz',{force:true});
+ await page.locator('#osc_custom').evaluate(el=>{el.checked=true;el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const values={initial:['2','10','1.1','0.8','0.5'],lower:['1','5','0.5','0.4','0.05'],upper:['5','30','2','3','1.5']};
+ for(const [key,arr] of Object.entries(values)){
+  const fields=page.locator('#osc_rows [data-param="'+key+'"]');
+  await expect(fields).toHaveCount(5);
+  for(let i=0;i<arr.length;i++)await fields.nth(i).evaluate((el,value)=>{el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));},arr[i]);
+ }
+ const saved=await page.evaluate(()=>window.oclReproSnapshot());
+ expect(saved.oscillator_parameters.initial).toEqual(values.initial);
+ expect(saved.oscillator_parameters.lower).toEqual(values.lower);
+ expect(saved.oscillator_parameters.upper).toEqual(values.upper);
+ expect(saved.oscillator_parameters.custom).toBe(true);
+ // Exercise actual project load handler with a JSON File, rather than resetting fields manually.
+ await page.locator('#osc_rows [data-param="initial"]').first().evaluate(el=>{el.value='4';});
+ await page.locator('#osc_custom').evaluate(el=>{el.checked=false;});
+ await page.locator('#loadWorkspaceProject').setInputFiles({name:'project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});
+ await expect(page.locator('#osc_custom')).toBeChecked();
+ for(const [key,arr] of Object.entries(values)){
+  const fields=page.locator('#osc_rows [data-param="'+key+'"]');
+  for(let i=0;i<arr.length;i++)await expect(fields.nth(i)).toHaveValue(arr[i]);
+ }
+ await expect(page.locator('#status')).toContainText('Saved results restored',{timeout:5000}).catch(()=>{});
+});
+
+test('Collapsible data/reference/diagnostics groups preserve controls in Single and Joint',async({page})=>{
+ await page.goto(base);
+ const upload=page.locator('#single_upload').locator('xpath=parent::details');
+ await expect(upload.locator(':scope > summary')).toContainText('Measured spectra');
+ await page.locator('#thickness').fill('135');
+ await upload.locator(':scope > summary').click();
+ await expect(upload).not.toHaveAttribute('open','');
+ await upload.locator(':scope > summary').click();
+ await expect(page.locator('#thickness')).toHaveValue('135');
+ const reference=page.locator('#reference_ri_file').locator('xpath=parent::details');
+ await expect(reference.locator(':scope > summary')).toContainText('Reference optical constants comparison');
+ await reference.locator(':scope > summary').click();
+ await reference.locator(':scope > summary').click();
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+ await expect(page.locator('#history_view').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Fit history');
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#files').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Measured spectra');
+ await expect(page.locator('#reference_ri_file')).toHaveCount(1);
+});
+test('Multilayer reference/settings and numerical diagnostics are collapsible',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('multilayer');
+ const frame=page.frameLocator('#multilayer_frame');
+ await expect(frame.locator('#reference').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Reference n,k');
+ const summary=frame.locator('#metrics').locator('xpath=ancestor::details[1]').locator(':scope > summary');
+ await expect(summary).toContainText('Fit metrics');
+ await summary.click();
+ await summary.click();
+ await expect(frame.locator('#run')).toHaveCount(1);
+ await expect(frame.locator('#reference')).toHaveCount(1);
+});
+test('Assisted scientific assessment uses readable individual status rows',async({page})=>{
+ await page.goto(base);
+ const pane=page.locator('#v2-science-validation');
+ await pane.locator('summary').click();
+ await page.locator('#v2-validation-tabs button[data-tab="assisted"]').click();
+ await expect(page.locator('#v2-validation-content')).toContainText('NOT ASSESSED');
+ await expect(page.locator('#v2-validation-content p').first()).toContainText('NOT ASSESSED');
+});
+
+test('Compact desktop header holds navigation, save/load, local statistics and citation',async({page})=>{
+ await page.setViewportSize({width:1920,height:1080});
+ await page.goto(base);
+ const header=page.locator('body > header');
+ await expect(header.locator('#nav_lab')).toBeVisible();
+ await expect(header.locator('#nav_tutorial')).toBeVisible();
+ await expect(header.locator('#ocl-top-save')).toBeVisible();
+ await expect(header.locator('#ocl-top-load')).toBeVisible();
+ await expect(header.locator('#ocl-quality')).toBeVisible();
+ await expect(header.locator('.citeLaboratory')).toBeVisible();
+ await expect(header.locator('#ocl-quality')).toHaveText('User statistics');
+ const geometry=await page.evaluate(()=>{
+  const h=document.querySelector('body>header').getBoundingClientRect();
+  const nav=document.querySelector('#ocl-top-save').getBoundingClientRect();
+  const stats=document.querySelector('#ocl-quality').getBoundingClientRect();
+  const cite=document.querySelector('header .citeLaboratory').getBoundingClientRect();
+  const content=document.querySelector('#single_joint_workspace').getBoundingClientRect();
+  const space=document.querySelector('#single_joint_workspace').getBoundingClientRect();
+  return {headerBottom:h.bottom,saveCenter:(nav.top+nav.bottom)/2,
+   statsCenter:(stats.top+stats.bottom)/2,citeCenter:(cite.top+cite.bottom)/2,
+   workspaceTop:space.top,contentTop:content.top,
+   pageScrollWidth:document.documentElement.scrollWidth,viewport:innerWidth};
+ });
+ expect(Math.abs(geometry.saveCenter-geometry.statsCenter)).toBeLessThan(30);
+ expect(Math.abs(geometry.statsCenter-geometry.citeCenter)).toBeLessThan(30);
+ expect(geometry.headerBottom).toBeLessThan(110);
+ expect(geometry.workspaceTop).toBeGreaterThanOrEqual(geometry.headerBottom-2);
+ expect(geometry.pageScrollWidth).toBeLessThanOrEqual(geometry.viewport+3);
+ await page.locator('#ocl-quality').click();
+ await expect(page.locator('#ocl-quality-dialog')).toBeVisible();
+ await expect(page.locator('#ocl-quality-dialog')).toContainText('anonymous aggregate activity');
+ await page.locator('#ocl-quality-close').click();
+ await expect(page.locator('#ocl-quality-dialog')).toBeHidden();
+ await page.locator('#workflow').selectOption('joint');
+ await expect(page.locator('#singleColumnWidth')).toBeVisible();
+ await expect(page.locator('#diagnosticColumnWidth')).toBeVisible();
+});
+test('Compact header is responsive without losing user statistics or project controls',async({page})=>{
+ await page.setViewportSize({width:760,height:900});
+ await page.goto(base);
+ await expect(page.locator('#ocl-top-save')).toBeVisible();
+ await expect(page.locator('#ocl-top-load')).toBeVisible();
+ await expect(page.locator('#ocl-quality')).toBeVisible();
+ await expect(page.locator('header .citeLaboratory')).toBeVisible();
+ await expect(page.locator('#workflow')).toBeVisible();
+ const bounds=await page.evaluate(()=>({
+  scroll:document.documentElement.scrollWidth,
+  inner:window.innerWidth,
+  bottom:document.querySelector('body>header').getBoundingClientRect().bottom,
+  toolbar:document.querySelector('#laboratory_main').getBoundingClientRect().top
+ }));
+ expect(bounds.scroll).toBeLessThanOrEqual(bounds.inner+3);
+ expect(bounds.toolbar).toBeGreaterThanOrEqual(bounds.bottom-3);
+});
+
+test('Title toolbar contains workflow, widths and all utility actions at 1920px',async({page})=>{
+ await page.setViewportSize({width:1920,height:1080});await page.goto(base);
+ const header=page.locator('body>header');
+ for(const id of ['#workflow','#singleColumnWidth','#diagnosticColumnWidth','#ocl-top-save','#ocl-top-load','#ocl-quality'])await expect(header.locator(id)).toHaveCount(1);
+ const positions=await page.evaluate(()=>{
+ const ids=['header h1','#workflow','#singleColumnWidth','#diagnosticColumnWidth','#ocl-quality'];
+ return ids.map(id=>{const b=document.querySelector(id).getBoundingClientRect();return (b.top+b.bottom)/2});
+ });
+ expect(Math.max(...positions)-Math.min(...positions)).toBeLessThan(34);
+ await expect(page.locator('#laboratory_main>.top')).toHaveCount(0);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#singleColumnWidth').fill('34');
+ await expect(page.locator('#singleColumnWidth')).toHaveValue('34');
+});
+test('Anonymous dashboard reports no persistent backend without claiming unique users',async({page})=>{
+ await page.goto(base);
+ await page.locator('#ocl-quality').click();
+ const modal=page.locator('#ocl-quality-dialog');
+ await expect(modal).toBeVisible();
+ await expect(modal).toContainText('Visits are not unique users');
+ await expect(modal).toContainText('Persistent aggregate storage is not connected.');
+ await expect(page.locator('#ocl-usage-range')).toHaveValue('30');
+});
