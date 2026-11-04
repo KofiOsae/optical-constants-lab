@@ -23,3 +23,14 @@ def test_spline_export_labels_n_and_k_coefficients_separately():
     assert params.cell(5, 2).value == 'n spline basis 4'
     assert params.cell(6, 2).value == 'k spline basis 1'
     assert params.cell(9, 2).value == 'k spline basis 4'
+
+
+def test_training_fingerprint_has_explanatory_metadata_without_changing_hash():
+    fingerprint='a'*64
+    book=load_workbook(build_numerical_model_workbook(
+        'tauc_lorentz',[2.35,18.,1.5,1.2,0.32],[450.,550.,690.],
+        {'training_fingerprint':fingerprint}))
+    rows={str(a):b for a,b in book['Metadata'].values if a is not None}
+    assert rows['Training data fingerprint (SHA-256)']==fingerprint
+    assert 'not a fit-quality score' in rows['Fingerprint scope']
+    assert 'training_fingerprint' not in rows
