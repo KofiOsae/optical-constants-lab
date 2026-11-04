@@ -269,21 +269,21 @@ test('Compact desktop header holds navigation, save/load, local statistics and c
   const nav=document.querySelector('#ocl-top-save').getBoundingClientRect();
   const stats=document.querySelector('#ocl-quality').getBoundingClientRect();
   const cite=document.querySelector('header .citeLaboratory').getBoundingClientRect();
-  const top=document.querySelector('#laboratory_main>.top').getBoundingClientRect();
+  const content=document.querySelector('#single_joint_workspace').getBoundingClientRect();
   const space=document.querySelector('#single_joint_workspace').getBoundingClientRect();
   return {headerBottom:h.bottom,saveCenter:(nav.top+nav.bottom)/2,
    statsCenter:(stats.top+stats.bottom)/2,citeCenter:(cite.top+cite.bottom)/2,
-   topBottom:top.bottom,workspaceTop:space.top,
+   workspaceTop:space.top,contentTop:content.top,
    pageScrollWidth:document.documentElement.scrollWidth,viewport:innerWidth};
  });
  expect(Math.abs(geometry.saveCenter-geometry.statsCenter)).toBeLessThan(30);
  expect(Math.abs(geometry.statsCenter-geometry.citeCenter)).toBeLessThan(30);
  expect(geometry.headerBottom).toBeLessThan(110);
- expect(geometry.workspaceTop).toBeGreaterThanOrEqual(geometry.topBottom-2);
+ expect(geometry.workspaceTop).toBeGreaterThanOrEqual(geometry.headerBottom-2);
  expect(geometry.pageScrollWidth).toBeLessThanOrEqual(geometry.viewport+3);
  await page.locator('#ocl-quality').click();
  await expect(page.locator('#ocl-quality-dialog')).toBeVisible();
- await expect(page.locator('#ocl-quality-dialog')).toContainText('device-local only');
+ await expect(page.locator('#ocl-quality-dialog')).toContainText('anonymous aggregate activity');
  await page.locator('#ocl-quality-close').click();
  await expect(page.locator('#ocl-quality-dialog')).toBeHidden();
  await page.locator('#workflow').selectOption('joint');
@@ -302,8 +302,32 @@ test('Compact header is responsive without losing user statistics or project con
   scroll:document.documentElement.scrollWidth,
   inner:window.innerWidth,
   bottom:document.querySelector('body>header').getBoundingClientRect().bottom,
-  toolbar:document.querySelector('#laboratory_main>.top').getBoundingClientRect().top
+  toolbar:document.querySelector('#laboratory_main').getBoundingClientRect().top
  }));
  expect(bounds.scroll).toBeLessThanOrEqual(bounds.inner+3);
  expect(bounds.toolbar).toBeGreaterThanOrEqual(bounds.bottom-3);
+});
+
+test('Title toolbar contains workflow, widths and all utility actions at 1920px',async({page})=>{
+ await page.setViewportSize({width:1920,height:1080});await page.goto(base);
+ const header=page.locator('body>header');
+ for(const id of ['#workflow','#singleColumnWidth','#diagnosticColumnWidth','#ocl-top-save','#ocl-top-load','#ocl-quality'])await expect(header.locator(id)).toHaveCount(1);
+ const positions=await page.evaluate(()=>{
+ const ids=['header h1','#workflow','#singleColumnWidth','#diagnosticColumnWidth','#ocl-quality'];
+ return ids.map(id=>{const b=document.querySelector(id).getBoundingClientRect();return (b.top+b.bottom)/2});
+ });
+ expect(Math.max(...positions)-Math.min(...positions)).toBeLessThan(34);
+ await expect(page.locator('#laboratory_main>.top')).toHaveCount(0);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#singleColumnWidth').fill('34');
+ await expect(page.locator('#singleColumnWidth')).toHaveValue('34');
+});
+test('Anonymous dashboard reports no persistent backend without claiming unique users',async({page})=>{
+ await page.goto(base);
+ await page.locator('#ocl-quality').click();
+ const modal=page.locator('#ocl-quality-dialog');
+ await expect(modal).toBeVisible();
+ await expect(modal).toContainText('Visits are not unique users');
+ await expect(modal).toContainText('Persistent aggregate storage is not connected.');
+ await expect(page.locator('#ocl-usage-range')).toHaveValue('30');
 });
