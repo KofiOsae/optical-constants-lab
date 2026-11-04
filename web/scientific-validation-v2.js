@@ -64,7 +64,7 @@ function render(){const d=get();const area=section.querySelector('#v2-validation
  if(active==='assisted'){
   area.replaceChildren();
   area.style.whiteSpace='normal';
-  const lines=report.split('\\n');
+  const lines=report.split('\n');
   const heading=document.createElement('p');heading.textContent=lines.shift()||'Assisted assessment';heading.style.cssText='font-weight:700;margin:0 0 12px;color:#e4f0ff';area.append(heading);
   const list=document.createElement('div');list.style.cssText='display:grid;gap:8px';
   for(const line of lines){
