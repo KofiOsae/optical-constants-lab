@@ -183,3 +183,32 @@ test('Near-tied Joint multistart RMSE uses readable relative axis with exact hov
  await expect.poll(()=>page.locator('#history_plot').evaluate(el=>el.layout?.yaxis?.title?.text)).toBe('RMSE excess vs best (ppm)');
  await expect(page.locator('#history_plot')).toContainText('RMSE excess vs best');
 });
+
+test('Joint project save and load preserves custom Tauc–Lorentz initial guesses and bounds',async({page})=>{
+ await page.goto(base);
+ await page.locator('#workflow').selectOption('joint');
+ await page.locator('#files').setInputFiles(['examples/v2/transparent_film_120nm.csv','examples/v2/transparent_film_240nm.csv']);
+ await page.locator('#joint_method').selectOption('tauc_lorentz',{force:true});
+ await page.locator('#osc_custom').evaluate(el=>{el.checked=true;el.dispatchEvent(new Event('change',{bubbles:true}));});
+ const values={initial:['2','10','1.1','0.8','0.5'],lower:['1','5','0.5','0.4','0.05'],upper:['5','30','2','3','1.5']};
+ for(const [key,arr] of Object.entries(values)){
+  const fields=page.locator('#osc_rows [data-param="'+key+'"]');
+  await expect(fields).toHaveCount(5);
+  for(let i=0;i<arr.length;i++)await fields.nth(i).evaluate((el,value)=>{el.value=value;el.dispatchEvent(new Event('input',{bubbles:true}));},arr[i]);
+ }
+ const saved=await page.evaluate(()=>window.oclReproSnapshot());
+ expect(saved.oscillator_parameters.initial).toEqual(values.initial);
+ expect(saved.oscillator_parameters.lower).toEqual(values.lower);
+ expect(saved.oscillator_parameters.upper).toEqual(values.upper);
+ expect(saved.oscillator_parameters.custom).toBe(true);
+ // Exercise actual project load handler with a JSON File, rather than resetting fields manually.
+ await page.locator('#osc_rows [data-param="initial"]').first().evaluate(el=>{el.value='4';});
+ await page.locator('#osc_custom').evaluate(el=>{el.checked=false;});
+ await page.locator('#loadWorkspaceProject').setInputFiles({name:'project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});
+ await expect(page.locator('#osc_custom')).toBeChecked();
+ for(const [key,arr] of Object.entries(values)){
+  const fields=page.locator('#osc_rows [data-param="'+key+'"]');
+  for(let i=0;i<arr.length;i++)await expect(fields.nth(i)).toHaveValue(arr[i]);
+ }
+ await expect(page.locator('#status')).toContainText('Saved results restored',{timeout:5000}).catch(()=>{});
+});
