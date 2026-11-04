@@ -236,7 +236,7 @@ test('Multilayer reference/settings and numerical diagnostics are collapsible',a
  await page.goto(base);
  await page.locator('#workflow').selectOption('multilayer');
  const frame=page.frameLocator('#multilayer_frame');
- await expect(frame.locator('#reference').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Reference optical constants');
+ await expect(frame.locator('#reference').locator('xpath=ancestor::details[1]').locator(':scope > summary')).toContainText('Reference n,k');
  const summary=frame.locator('#metrics').locator('xpath=ancestor::details[1]').locator(':scope > summary');
  await expect(summary).toContainText('Fit metrics');
  await summary.click();
