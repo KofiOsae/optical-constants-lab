@@ -306,3 +306,8 @@ flowchart TD
 ```
 
 This chart describes the recommended scientific workflow, not a promise that every model supports exact parameter transfer or a formula-based external workbook. Inspect the interface for method-specific limitations.
+
+
+### Training data fingerprint (SHA-256)
+
+For Joint fitting, the `training_fingerprint` field in the fit-history CSV and workbook metadata is a SHA-256 identifier computed from the **training** R/T arrays and measurement geometry (including sample thickness, optical substrate properties and measurement configuration). It intentionally excludes the original filenames and optimizer choice. A matching fingerprint indicates the same encoded training problem, not that the optimizer, dispersion model, initial values, bounds, code version or recovered n,k are the same. Save the complete project and model parameters alongside the fingerprint for reproducibility. The workbook displays **Training data fingerprint (SHA-256)** and a short description; the history CSV retains the machine-readable `training_fingerprint` column.

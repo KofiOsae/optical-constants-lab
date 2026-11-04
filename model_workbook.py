@@ -48,7 +48,11 @@ def build_model_workbook(model, coefficients, wavelengths_nm, metadata=None):
     meta=wb.create_sheet('Metadata')
     meta.append(['Field','Value'])
     meta.append(['Model',model]);meta.append(['Oscillators',count])
-    for k,v in (metadata or {}).items():meta.append([str(k),str(v)])
+    for k,v in (metadata or {}).items():
+        label='Training data fingerprint (SHA-256)' if k=='training_fingerprint' else str(k)
+        meta.append([label,str(v)])
+    if (metadata or {}).get('training_fingerprint'):
+        meta.append(['Fingerprint scope','Hash of numerical training spectra and measurement geometry; not a fit-quality score or complete configuration ID.'])
     notes=wb.create_sheet('Instructions')
     for line in [
         'Edit wavelength_nm values in Reconstruction; Excel recalculates epsilon, n and k.',
@@ -144,7 +148,11 @@ def build_numerical_model_workbook(model, coefficients, wavelengths_nm, metadata
     for wl,e,nv,kv in zip(w,eps,n,k):
         vals.append([float(wl),float(e.real),float(e.imag),float(nv),float(kv),float(4*np.pi*kv/(wl*1e-7))])
     ms=wb.create_sheet('Metadata');ms.append(['Field','Value']);ms.append(['model',model])
-    for key,val in meta.items():ms.append([str(key),str(val)])
+    for key,val in meta.items():
+        label='Training data fingerprint (SHA-256)' if key=='training_fingerprint' else str(key)
+        ms.append([label,str(val)])
+    if meta.get('training_fingerprint'):
+        ms.append(['Fingerprint scope','Hash of numerical training spectra and measurement geometry; not a fit-quality score or complete configuration ID.'])
     doc=wb.create_sheet('External_reconstruction')
     lines=[
         'The Reconstruction sheet is calculated at export; those numbers are not live Excel formula evaluations.',
