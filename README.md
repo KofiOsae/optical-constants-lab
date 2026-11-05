@@ -1,5 +1,15 @@
 # Optical Constants Laboratory — Browser / Tablet / Render v0.3
 
+## Official scientific software citation (v2.0.0)
+
+Asamoah, Benjamin O. (2026). *Optical Constants Laboratory* (Version 2.0.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23966359
+
+- [Version-specific Zenodo archive](https://doi.org/10.5281/zenodo.23966359)
+- [Immutable GitHub v2.0.0 release](https://github.com/KofiOsae/optical-constants-lab/releases/tag/v2.0.0) — commit `17c94963edd364f87e1ddddbe69c45d3c5c833d1`
+- [Public laboratory](https://optical-constants-lab.onrender.com)
+
+**Archive note:** The original v2.0.0 GitHub source archive is immutable and predates DOI registration; this README citation update is a later development commit and does not modify the version-tagged release.
+
 Same scientific Python engine with responsive HTML frontend. Run locally on a computer or deploy the Flask API on Render using `render.yaml`. A tablet accesses the hosted site through its ordinary browser; it does not run Python itself.
 
 **Quick start (computer):** install `requirements.txt`, then `python server.py` and open `http://127.0.0.1:8765`. **Tablet:** follow `DEPLOY.md` to deploy and open the hosted service URL.
