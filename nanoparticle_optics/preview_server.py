@@ -23,6 +23,7 @@ from nanoparticle_optics.meep_colab import MeepJob, make_notebook
 from nanoparticle_optics.dispersion_models import model_epsilon
 from nanoparticle_optics.three_phase import three_phase_epsilon
 from nanoparticle_optics.regime import scattering_regime
+from nanoparticle_optics.assisted_assessment import assess_calculation
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -94,6 +95,7 @@ def calculate():
             result["regime_diagnostics"]=scattering_regime(wl,radius_for_regime,host_nk,particle_nk,aggregate=aggregate,shape=shape)
         if shape!="sphere" or aggregate:
             result["warning"]="Spherical Mie disabled for nonspherical or aggregated particles; use an external geometry solver."
+            result["assisted_assessment"]=assess_calculation(result)
             return jsonify(result)
         if np.all(np.abs(host_nk.imag)<1e-12):
             radius=float(p.get("radius_nm",30))
@@ -118,6 +120,7 @@ def calculate():
                 result["mean_geometric_area_nm2"]=float(np.pi*radius**2)
         else:
             result["warning"]="Mie scattering disabled: host must be lossless."
+        result["assisted_assessment"]=assess_calculation(result)
         return jsonify(result)
     except (ValueError,TypeError,OverflowError,ZeroDivisionError) as exc:
         return jsonify({"error":str(exc)}),400
