@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nanoparticle Optics | Research Preview</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+:root{font:15px system-ui;color:#142235;background:#f3f6fa}*{box-sizing:border-box}
+header{background:#102b47;color:white;padding:18px 26px}header h1{margin:0;font-size:22px}
+header small{color:#bcd0df}.layout{display:grid;grid-template-columns:310px minmax(0,1fr);gap:16px;padding:16px}
+section{background:white;border:1px solid #dce4ed;border-radius:10px;padding:18px}
+h2{font-size:16px;margin:0 0 12px}label{display:block;margin:9px 0;font-size:13px}
+input,select{width:100%;padding:7px;border:1px solid #b9c9d8;border-radius:5px}
+button{background:#12629a;color:white;border:0;border-radius:6px;padding:10px 15px;cursor:pointer}
+.note{font-size:12px;color:#536b80;line-height:1.5}.plots{display:grid;grid-template-columns:1fr;gap:12px}
+.plot{height:320px}#status{font-size:13px;margin-top:10px}
+@media(max-width:750px){.layout{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Nanoparticle Optics & Effective-Medium Modelling</h1>
+<small>Isolated research preview · Not the published Optical Constants Laboratory · Synthetic constant-index demonstration</small></header>
+<main class="layout"><section><h2>Model configuration</h2>
+<label>Effective-medium model<select id="method"><option value="maxwell_garnett">Maxwell–Garnett</option><option value="bruggeman">Bruggeman</option></select></label>
+<label>Host n<input id="host_n" type="number" step=".01" value="1.5"></label>
+<label>Host k<input id="host_k" type="number" step=".01" value="0"></label>
+<label>Particle n<input id="particle_n" type="number" step=".01" value="2"></label>
+<label>Particle k<input id="particle_k" type="number" step=".01" value=".1"></label>
+<label>Particle volume fraction<input id="fraction" type="number" step=".01" min="0" max="1" value=".1"></label>
+<label>Particle radius (nm)<input id="radius_nm" type="number" min=".1" value="30"></label>
+<label>Distribution<select id="distribution"><option value="single">Monodisperse</option><option value="lognormal">Lognormal</option></select></label>
+<label>Geometric standard deviation<input id="geometric_std" type="number" step=".05" min="1" value="1.2"></label>
+<label>Wavelength start (nm)<input id="start_nm" type="number" value="400"></label>
+<label>Wavelength end (nm)<input id="end_nm" type="number" value="900"></label>
+<button id="run">Calculate spectra</button> <button id="export" disabled>Export CSV</button>
+<div id="status" role="status"></div>
+<p class="note">The current preview uses wavelength-independent input indices. Mie assumes a lossless host and independent spherical particles. Effective-medium theory assumes subwavelength inclusions. These models describe different approximations and must not be interpreted as equivalent.</p>
+</section><section><h2>Calculated optical response</h2><div class="plots">
+<div id="nk" class="plot"></div><div id="cross" class="plot"></div></div>
+<p class="note">Scientific validation and full material-library integration are pending. No third-party material datasets are bundled.</p>
+</section></main>
+<script>
+let latest=null;
+const keys=["method","host_n","host_k","particle_n","particle_k","fraction","radius_nm","distribution","geometric_std","start_nm","end_nm"];
+document.getElementById("run").onclick=async()=>{
+ const p={};for(const key of keys)p[key]=document.getElementById(key).value;
+ const status=document.getElementById("status");status.textContent="Calculating...";
+ try{const response=await fetch("/api/calculate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
+ const data=await response.json();if(!response.ok)throw Error(data.error||"Calculation failed");
+ latest=data;document.getElementById("export").disabled=false;
+ Plotly.newPlot("nk",[{x:data.wavelength_nm,y:data.effective_n,name:"Effective n"},{x:data.wavelength_nm,y:data.effective_k,name:"Effective k"}],
+ {title:"Effective optical constants",xaxis:{title:"Wavelength (nm)"},yaxis:{title:"n, k"},margin:{t:45}});
+ const series=["Cext_nm2","Csca_nm2","Cabs_nm2"].filter(k=>data[k]).map(k=>({x:data.wavelength_nm,y:data[k],name:k}));
+ Plotly.newPlot("cross",series,{title:"Particle optical cross-sections",xaxis:{title:"Wavelength (nm)"},yaxis:{title:"Cross-section (nm²)"},margin:{t:45}});
+ status.textContent=data.warning||"Calculated. Research preview only.";
+ }catch(e){status.textContent="Error: "+e.message;}
+};
+document.getElementById("export").onclick=()=>{
+ if(!latest)return;const fields=["wavelength_nm","effective_n","effective_k","Cext_nm2","Csca_nm2","Cabs_nm2"];
+ const present=fields.filter(k=>Array.isArray(latest[k]));const lines=[present.join(",")];
+ for(let i=0;i<latest.wavelength_nm.length;i++)lines.push(present.map(k=>latest[k][i]).join(","));
+ const blob=new Blob([lines.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);
+ const a=document.createElement("a");a.href=url;a.download="nanoparticle_research_spectra.csv";a.click();URL.revokeObjectURL(url);
+};
+document.getElementById("run").click();
+</script></body></html>
