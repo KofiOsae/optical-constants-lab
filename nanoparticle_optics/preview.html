@@ -112,10 +112,11 @@ function initializeResearchWorkspace(){
  diag.append(workflowNotes);
  function showWorkflow(name){
    const workbench=["spectra","fill","infiltration"].includes(name);
-   sharedConfig.querySelectorAll(".model-group").forEach(el=>{if(!el.classList.contains("analysis-settings"))el.hidden=!workbench});
+   sharedConfig.querySelectorAll(".model-group").forEach(el=>{if(!workbench)el.hidden=true});
    ellipsConfig.hidden=name!=="ellipsometry";meepConfig.hidden=name!=="meep";
    ellipsResult.hidden=name!=="ellipsometry";meepResult.hidden=name!=="meep";theoryResult.hidden=name!=="theory";
    response.querySelector(".plots").hidden=!workbench;
+   for(const id of ["run","export","status"]){const node=byId(id);if(node)node.hidden=!workbench}
    diag.querySelector("#diagnostics_mode").closest("label").hidden=!workbench;
    for(const id of ["assisted_panel","material_library","distribution_tool"])byId(id).hidden=!workbench;
    workflowNotes.hidden=workbench;
@@ -409,7 +410,7 @@ document.getElementById("ellips_csv").onchange=async(e)=>{
  if(file.size>2000000){document.getElementById("tool_output").textContent="CSV exceeds 2 MB";return}
  try{const r=await fetch("/api/ellipsometry/parse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({csv_text:await file.text()})});const data=await r.json();if(!r.ok)throw Error(data.error);document.getElementById("ellips_json").value=JSON.stringify(data,null,2);document.getElementById("tool_output").textContent="Imported "+data.wavelength_nm.length+" wavelengths at "+data.angles_deg.length+" incidence angles. Review inputs and click Fit ellipsometry."}catch(err){document.getElementById("tool_output").textContent="CSV error: "+err.message}
 };
-document.getElementById("ellips_run").onclick=()=>{try{toolPost("/api/ellipsometry/fit",JSON.parse(document.getElementById("ellips_json").value))}catch(e){document.getElementById("tool_output").textContent=e.message}};
+document.getElementById("ellips_run").onclick=async()=>{const output=document.getElementById("ellips_result_text");output.textContent="Fitting…";try{const data=await toolPost("/api/ellipsometry/fit",JSON.parse(document.getElementById("ellips_json").value));output.textContent=data?JSON.stringify(data,null,2):"Fit failed; inspect Diagnostics."}catch(e){output.textContent="Fit error: "+e.message}};
 document.getElementById("meep_field_csv").onchange=async e=>{
  const status=document.getElementById("tool_output");
  try{
@@ -418,7 +419,7 @@ document.getElementById("meep_field_csv").onchange=async e=>{
  const rows=(await file.text()).trim().split(/\r?\n/).map(line=>line.split(",").map(Number));
  if(rows.length<2||rows.length>1500||rows[0].length<2||rows[0].length>1500||rows.some(r=>r.length!==rows[0].length||r.some(x=>!Number.isFinite(x))))throw Error("Invalid rectangular numeric field CSV");
  Plotly.newPlot("meep_field_plot",[{z:rows,type:"heatmap",colorscale:"RdBu",zmid:0,colorbar:{title:"Field"}}],{title:"Imported Meep field slice · arbitrary field units",xaxis:{title:"Grid x (pixels)"},yaxis:{title:"Grid y (pixels)",scaleanchor:"x"},margin:{t:45,r:70,b:55,l:65}});
- status.textContent="Imported "+rows.length+" × "+rows[0].length+" Meep field samples. Field snapshot only; no n,k or Q derived.";
+ status.textContent="Imported "+rows.length+" × "+rows[0].length+" Meep field samples. Field snapshot only; no n,k or Q derived.";document.getElementById("meep_result_message").textContent=status.textContent;
  }catch(err){status.textContent="Meep field import error: "+err.message}
 };
 document.getElementById("meep_notebook").onclick=async()=>{
@@ -438,7 +439,7 @@ document.getElementById("meep_notebook").onclick=async()=>{
  if(!result)return;
  const blob=new Blob([JSON.stringify(result.notebook,null,2)],{type:"application/x-ipynb+json"});
  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ocl_meep_"+dim+"d_preconfigured.ipynb";a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
- document.getElementById("tool_output").textContent="Notebook prepared and downloaded. Open Colab → File → Upload notebook → review/authorize runtime → Run all. The notebook attempts conda-forge PyMeep installation. If Colab restarts, select Run all again. Fresh-runtime installation has not yet been verified.";
+ document.getElementById("meep_result_message").textContent="Notebook prepared and downloaded. Open Colab → File → Upload notebook → review/authorize runtime → Run all. The notebook attempts conda-forge PyMeep installation. If Colab restarts, select Run all again. Fresh-runtime installation has not yet been verified.";
 };
 initializeResearchWorkspace();
 previewDistribution();
