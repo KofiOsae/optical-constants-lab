@@ -43,3 +43,13 @@ def test_invalid_inputs():
         ensemble_cross_sections([500.], [20.], [-1.], 1.5)
     with pytest.raises(ValueError):
         ensemble_cross_sections([500.], [20.], [1.], 1.5, number_density_nm3=1.)
+
+def test_lognormal_scattering_quadrature_convergence():
+    """Smooth weakly absorbing distribution: refinement should stabilize mean Csca."""
+    wl = np.array([550.])
+    values = []
+    for count in (81, 161, 321):
+        r, p = lognormal_radius_bins(30., 1.25, count=count)
+        values.append(ensemble_cross_sections(wl, r, p, 1.65+0.03j)["Csca_nm2"][0])
+    assert abs(values[1]-values[2])/values[2] < 0.001
+    assert abs(values[1]-values[2]) < abs(values[0]-values[1])
