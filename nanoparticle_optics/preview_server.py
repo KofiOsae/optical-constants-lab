@@ -98,6 +98,20 @@ def fit_ellipsometry_api():
     except (ValueError,TypeError,KeyError) as exc:
         return jsonify({"error":str(exc)}),400
 
+@app.post("/api/distribution")
+def distribution_api():
+    try:
+        p=request.get_json(force=True)
+        radii,weights=radius_bins(p.get("distribution","single"),float(p.get("radius_nm",30)),
+          float(p.get("spread",.2)),count=61,second_radius_nm=p.get("second_radius_nm"),
+          mixture_fraction=float(p.get("mixture_fraction",.5)),
+          histogram_radii_nm=p.get("histogram_radii_nm"),histogram_number_weights=p.get("histogram_number_weights"))
+        volume=weights*radii**3
+        return jsonify({"radii_nm":radii.tolist(),"number_weights":weights.tolist(),
+          "volume_weights":(volume/volume.sum()).tolist()})
+    except (ValueError,TypeError,KeyError,OverflowError) as exc:
+        return jsonify({"error":str(exc)}),400
+
 @app.post("/api/angular")
 def angular_api():
     try:
