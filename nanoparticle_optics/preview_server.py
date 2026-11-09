@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 from nanoparticle_optics.effective_medium import maxwell_garnett, bruggeman
 from nanoparticle_optics.mie import mie_sphere
+from nanoparticle_optics.angular import mie_anisotropy, ensemble_anisotropy
 from nanoparticle_optics.ensemble import ensemble_cross_sections
 from nanoparticle_optics.distributions import radius_bins
 from nanoparticle_optics.materials import MaterialRecord
@@ -50,9 +51,16 @@ def calculate():
                 result["radii_nm"]=radii.tolist()
                 result["number_weights"]=weights.tolist()
                 result["volume_weights"]=m["volume_weights"].tolist()
+                angular=ensemble_anisotropy(wl,radii,weights,inc,host.real,number_density_nm3=f/m["mean_particle_volume_nm3"])
+                result.update({k:angular[k].tolist() for k in ("g","mu_s_nm_inv","mu_s_prime_nm_inv")})
             else:
                 m=mie_sphere(wl,radius,inc,host.real)
                 result.update({k:m[k].tolist() for k in ("Cext_nm2","Csca_nm2","Cabs_nm2")})
+                angular=mie_anisotropy(wl,radius,inc,host.real)
+                density=f/(4*np.pi/3*radius**3)
+                result["g"]=angular["g"].tolist()
+                result["mu_s_nm_inv"]=(density*m["Csca_nm2"]).tolist()
+                result["mu_s_prime_nm_inv"]=(density*m["Csca_nm2"]*(1-angular["g"])).tolist()
         else:
             result["warning"]="Mie scattering disabled: host must be lossless."
         return jsonify(result)
