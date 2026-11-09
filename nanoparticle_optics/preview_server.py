@@ -171,13 +171,14 @@ def angular_api():
         host=float(p.get("host_n",1.5))
         inc=complex(float(p["particle_n"]),float(p.get("particle_k",0)))
         radius=float(p["radius_nm"])
-        if p.get("host_material"):
-            host_eps=interpolate_epsilon(p["host_material"],np.array([wl]))[0]
+        if p.get("host_material") or p.get("host_model"):
+            host_eps=(interpolate_epsilon(p["host_material"],np.array([wl])) if p.get("host_material") else model_epsilon(p["host_model"],np.array([wl])))[0]
             hn=np.sqrt(host_eps)
             if abs(hn.imag)>1e-12:raise ValueError("Angular Mie requires a lossless host")
             host=float(hn.real)
-        if p.get("particle_material"):
-            inc=complex(np.sqrt(interpolate_epsilon(p["particle_material"],np.array([wl]))[0]))
+        if p.get("particle_material") or p.get("particle_model"):
+            particle_eps=(interpolate_epsilon(p["particle_material"],np.array([wl])) if p.get("particle_material") else model_epsilon(p["particle_model"],np.array([wl])))[0]
+            inc=complex(np.sqrt(particle_eps))
         if p.get("distribution","single")=="single":
             out=sphere_phase_function(wl,radius,inc,host)
             return jsonify({k:v.tolist() if isinstance(v,np.ndarray) else v for k,v in out.items()})
