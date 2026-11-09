@@ -52,15 +52,24 @@ def make_notebook(job):
        "This notebook is preconfigured. **Review the inputs and authorize Colab before running.** "
        "2D is an infinite cylinder; 3D is a finite sphere. Results are not equivalent. "
        "This prototype produces fields, not validated scattering cross sections.")
-    md("## Runtime setup\nMeep's Python bindings are not guaranteed on free Colab. "
-       "The following cell checks for them and gives an explicit error if unavailable. "
-       "Do not substitute the unrelated PyPI package named `meep`.")
-    code("""import importlib.util
+    md("## Runtime setup · Colab-managed conda-forge PyMeep\\n"
+       "The next cell attempts installation using conda-forge, not the unrelated PyPI package named meep. "
+       "Colab may restart its kernel during conda setup. If it does, select Runtime → Run all again. "
+       "The runtime must be authorized by the user. Installation is network- and Colab-version-dependent; "
+       "a fresh-runtime success has not been independently verified.")
+    code("""import importlib.util, subprocess, sys
 if importlib.util.find_spec('meep') is None:
-    raise RuntimeError('PyMeep is not installed in this Colab runtime. Use a supported conda-forge pymeep environment; automatic Colab installation is not yet validated.')
+    try:
+        import condacolab
+    except ImportError:
+        subprocess.check_call([sys.executable,'-m','pip','install','-q','condacolab'])
+        import condacolab
+    condacolab.install()
+    subprocess.check_call(['mamba','install','-y','-c','conda-forge','pymeep','numpy','matplotlib'])
 import meep as mp
 import numpy as np
 import matplotlib.pyplot as plt
+print('PyMeep import successful:',getattr(mp,'__version__','unknown'))
 """)
     code("import json\nconfig = json.loads("+repr(config)+")\nprint('Loaded job:',config['schema'],config['dimension'],'D')")
     code("""j=config['job']
