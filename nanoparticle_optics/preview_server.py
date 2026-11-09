@@ -17,6 +17,7 @@ from nanoparticle_optics.fmm_interchange import export_fmm_material
 from nanoparticle_optics.meep2d import Meep2DJob
 from nanoparticle_optics.ellipsometry_inverse import fit_ellipsometry
 from nanoparticle_optics.ellipsometry_csv import parse_ellipsometry_csv
+from nanoparticle_optics.optical_csv import parse_optical_csv, interpolate_epsilon
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -38,29 +39,38 @@ def calculate():
         method=p.get("method","maxwell_garnett")
         if method not in ("maxwell_garnett","bruggeman"):
             raise ValueError("Unknown effective-medium model")
-        eps=(maxwell_garnett if method=="maxwell_garnett" else bruggeman)(host**2,inc**2,f)
+        host_eps=interpolate_epsilon(p["host_material"],wl) if p.get("host_material") else np.full(wl.shape,host**2,dtype=complex)
+        particle_eps=interpolate_epsilon(p["particle_material"],wl) if p.get("particle_material") else np.full(wl.shape,inc**2,dtype=complex)
+        eps=np.array([(maxwell_garnett if method=="maxwell_garnett" else bruggeman)(eh,ep,f)
+                      for eh,ep in zip(host_eps,particle_eps)],dtype=complex)
         nk=np.sqrt(eps+0j)
-        if nk.imag<0: nk=-nk
-        result={"wavelength_nm":wl.tolist(),"volume_fraction":f,"effective_n":[float(nk.real)]*len(wl),
-                "effective_k":[float(nk.imag)]*len(wl),"effective_epsilon1":[float(eps.real)]*len(wl),
-                "effective_epsilon2":[float(eps.imag)]*len(wl),"method":method}
+        nk=np.where(nk.imag<0,-nk,nk)
+        host_nk=np.sqrt(host_eps+0j)
+        particle_nk=np.sqrt(particle_eps+0j)
+        host_nk=np.where(host_nk.imag<0,-host_nk,host_nk)
+        particle_nk=np.where(particle_nk.imag<0,-particle_nk,particle_nk)
+        result={"wavelength_nm":wl.tolist(),"volume_fraction":f,"effective_n":nk.real.tolist(),
+                "effective_k":nk.imag.tolist(),"effective_epsilon1":eps.real.tolist(),
+                "effective_epsilon2":eps.imag.tolist(),"method":method,
+                "host_n":host_nk.real.tolist(),"host_k":host_nk.imag.tolist(),
+                "particle_n":particle_nk.real.tolist(),"particle_k":particle_nk.imag.tolist()}
         # A transparent nonabsorbing host is required for the Mie implementation.
-        if host.imag==0:
+        if np.all(np.abs(host_nk.imag)<1e-12):
             radius=float(p.get("radius_nm",30))
             if p.get("distribution","single")!="single":
                 radii,weights=radius_bins(p.get("distribution","lognormal"),radius,float(p.get("spread",.2)),count=61,second_radius_nm=p.get("second_radius_nm"),mixture_fraction=float(p.get("mixture_fraction",.5)),histogram_radii_nm=p.get("histogram_radii_nm"),histogram_number_weights=p.get("histogram_number_weights"))
-                m=ensemble_cross_sections(wl,radii,weights,inc,host.real)
+                m=ensemble_cross_sections(wl,radii,weights,particle_nk,host_nk.real)
                 result.update({k:m[k].tolist() for k in ("Cext_nm2","Csca_nm2","Cabs_nm2")})
                 result["radii_nm"]=radii.tolist()
                 result["number_weights"]=weights.tolist()
                 result["volume_weights"]=m["volume_weights"].tolist()
                 result["mean_geometric_area_nm2"]=float(np.pi*np.dot(weights,radii**2))
-                angular=ensemble_anisotropy(wl,radii,weights,inc,host.real,number_density_nm3=f/m["mean_particle_volume_nm3"])
+                angular=ensemble_anisotropy(wl,radii,weights,particle_nk,host_nk.real,number_density_nm3=f/m["mean_particle_volume_nm3"])
                 result.update({k:angular[k].tolist() for k in ("g","mu_s_nm_inv","mu_s_prime_nm_inv")})
             else:
-                m=mie_sphere(wl,radius,inc,host.real)
+                m=mie_sphere(wl,radius,particle_nk,host_nk.real)
                 result.update({k:m[k].tolist() for k in ("Cext_nm2","Csca_nm2","Cabs_nm2")})
-                angular=mie_anisotropy(wl,radius,inc,host.real)
+                angular=mie_anisotropy(wl,radius,particle_nk,host_nk.real)
                 density=f/(4*np.pi/3*radius**3)
                 result["g"]=angular["g"].tolist()
                 result["mu_s_nm_inv"]=(density*m["Csca_nm2"]).tolist()
@@ -70,6 +80,15 @@ def calculate():
             result["warning"]="Mie scattering disabled: host must be lossless."
         return jsonify(result)
     except (ValueError,TypeError,OverflowError,ZeroDivisionError) as exc:
+        return jsonify({"error":str(exc)}),400
+
+@app.post("/api/material/parse")
+def material_parse_api():
+    try:
+        p=request.get_json(force=True)
+        if len(p["csv_text"])>1000000:raise ValueError("CSV exceeds 1 MB")
+        return jsonify(parse_optical_csv(p["csv_text"]))
+    except (ValueError,TypeError,KeyError) as exc:
         return jsonify({"error":str(exc)}),400
 
 @app.post("/api/material/validate")
