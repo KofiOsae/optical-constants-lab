@@ -169,11 +169,11 @@ document.getElementById("run").onclick=async()=>{
  renderEffective(data);
  renderObservable(data);
  if(data.radii_nm){Plotly.newPlot("distribution_plot",[{x:data.radii_nm,y:data.number_weights,name:"Number weights",type:"bar"},{x:data.radii_nm,y:data.volume_weights,name:"Volume weights",type:"bar"}],{barmode:"group",margin:{t:20},xaxis:{title:"Radius (nm)"}})}
- status.textContent=data.warning||"Calculated. Research preview only.";
+ status.textContent=(data.warning||"Calculated. Research preview only.")+" "+(data.regime_guidance||"");
  }catch(e){status.textContent="Error: "+e.message;}
 };
 document.getElementById("export").onclick=()=>{
- if(!latest)return;const fields=["wavelength_nm","effective_n","effective_k","effective_epsilon1","effective_epsilon2","Cext_nm2","Csca_nm2","Cabs_nm2","g","mu_s_nm_inv","mu_s_prime_nm_inv"];
+ if(!latest)return;const fields=["wavelength_nm","size_parameter","host_n","host_k","particle_n","particle_k","pore_n","pore_k","effective_n","effective_k","effective_epsilon1","effective_epsilon2","Cext_nm2","Csca_nm2","Cabs_nm2","g","mu_s_nm_inv","mu_s_prime_nm_inv"];
  const present=fields.filter(k=>Array.isArray(latest[k]));const lines=[present.join(",")];
  for(let i=0;i<latest.wavelength_nm.length;i++)lines.push(present.map(k=>latest[k][i]).join(","));
  const blob=new Blob([lines.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);
