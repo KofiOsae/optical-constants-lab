@@ -121,13 +121,48 @@ function initializeResearchWorkspace(){
  for(const id of ["host_material_file","particle_material_file"])byId(id).addEventListener("change",()=>setTimeout(updateAdaptiveInputs,250));
  updateAdaptiveInputs();
  const comparison=byId("fill_comparison"),infiltration=byId("infiltration_comparison"),spectra=byId("spectra_group");
+ // Each analysis has left-column settings and a middle-column result plot.
+ // Move existing nodes (rather than cloning) to preserve their input state and event listeners.
+ function splitAnalysisPanel(panel,plotId,settingsTitle){
+  const settings=document.createElement("details");settings.className="model-group analysis-settings";settings.open=true;
+  settings.id=panel.id+"_settings";
+  const heading=document.createElement("summary");heading.textContent=settingsTitle;settings.append(heading);
+  const plotCard=document.createElement("div");plotCard.className="plot-panel analysis-result";
+  plotCard.id=panel.id+"_result";
+  const plotHeading=document.createElement("h3");plotHeading.textContent=settingsTitle+" · calculated response";
+  plotCard.append(plotHeading);
+  const plot=byId(plotId);
+  for(const child of [...panel.children]){
+   if(child===plot){plotCard.append(child);continue}
+   if(child.tagName==="SUMMARY")continue;
+   if(child.tagName==="LABEL"&&child.querySelector("select")&&child.querySelector("select").id.endsWith("_property")){
+    settings.append(child);continue;
+   }
+   settings.append(child);
+  }
+  config.append(settings);
+  panel.append(plotCard);
+  return {settings,result:panel};
+ }
+ const fillPanels=splitAnalysisPanel(comparison,"fraction_compare_plot","Particle fill-factor comparison");
+ const sensingPanels=splitAnalysisPanel(infiltration,"sensing_plot","Pore infiltration / sensing");
+ // Put the spectrum selectors alongside other settings, leaving only response figures in the centre.
+ const spectrumSettings=document.createElement("details");spectrumSettings.className="model-group analysis-settings";spectrumSettings.id="spectra_settings";spectrumSettings.open=true;
+ const spectrumHeading=document.createElement("summary");spectrumHeading.textContent="Spectral analysis · display settings";spectrumSettings.append(spectrumHeading);
+ for(const id of ["observable","angular_wavelength_nm","effective_observable"]){
+  const input=byId(id);const label=input.closest("label");if(label)spectrumSettings.append(label);
+ }
+ config.append(spectrumSettings);
+
  function setAnalysisMode(){
   const mode=byId("analysis_mode").value;
   byId("analysis_mode").closest(".mode-switch").hidden=true;
   byId("configuration_panel").dataset.mode=mode;byId("diagnostics_panel").dataset.mode=mode;
   byId("diagnostics_mode").value=mode==="spectra"?"assisted_panel":mode==="fill"?"material_library":"assisted_panel";byId("diagnostics_mode").dispatchEvent(new Event("change"));
   spectra.hidden=mode!=="spectra";comparison.hidden=mode!=="fill";infiltration.hidden=mode!=="infiltration";
+  spectrumSettings.hidden=mode!=="spectra";fillPanels.settings.hidden=mode!=="fill";sensingPanels.settings.hidden=mode!=="infiltration";
   comparison.open=mode==="fill";infiltration.open=mode==="infiltration";
+  fillPanels.settings.open=mode==="fill";sensingPanels.settings.open=mode==="infiltration";
   requestAnimationFrame(()=>{for(const id of ["cross","nk","fraction_compare_plot","sensing_plot"]){const plot=byId(id);if(plot&&plot.data&&plot.offsetWidth>0)Plotly.Plots.resize(plot)}});
   if(mode==="spectra"&&latest)requestAnimationFrame(()=>requestAnimationFrame(()=>{renderEffective(latest);renderObservable(latest)}));
   if(mode==="fill"&&comparisonResults)requestAnimationFrame(()=>requestAnimationFrame(()=>renderFractionComparison()));
