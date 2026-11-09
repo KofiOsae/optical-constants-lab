@@ -8,7 +8,12 @@ from pathlib import Path
 import numpy as np
 from nanoparticle_optics.effective_medium import maxwell_garnett, bruggeman
 from nanoparticle_optics.mie import mie_sphere
-from nanoparticle_optics.ensemble import ensemble_cross_sections, lognormal_radius_bins
+from nanoparticle_optics.ensemble import ensemble_cross_sections
+from nanoparticle_optics.distributions import radius_bins
+from nanoparticle_optics.materials import MaterialRecord
+from nanoparticle_optics.fmm_interchange import export_fmm_material
+from nanoparticle_optics.meep2d import Meep2DJob
+from nanoparticle_optics.ellipsometry_inverse import fit_ellipsometry
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -38,10 +43,13 @@ def calculate():
         # A transparent nonabsorbing host is required for the Mie implementation.
         if host.imag==0:
             radius=float(p.get("radius_nm",30))
-            if p.get("distribution","single")=="lognormal":
-                radii,weights=lognormal_radius_bins(radius,float(p.get("geometric_std",1.2)),count=81)
+            if p.get("distribution","single")!="single":
+                radii,weights=radius_bins(p.get("distribution","lognormal"),radius,float(p.get("spread",.2)),count=61,second_radius_nm=p.get("second_radius_nm"),mixture_fraction=float(p.get("mixture_fraction",.5)),histogram_radii_nm=p.get("histogram_radii_nm"),histogram_number_weights=p.get("histogram_number_weights"))
                 m=ensemble_cross_sections(wl,radii,weights,inc,host.real)
                 result.update({k:m[k].tolist() for k in ("Cext_nm2","Csca_nm2","Cabs_nm2")})
+                result["radii_nm"]=radii.tolist()
+                result["number_weights"]=weights.tolist()
+                result["volume_weights"]=m["volume_weights"].tolist()
             else:
                 m=mie_sphere(wl,radius,inc,host.real)
                 result.update({k:m[k].tolist() for k in ("Cext_nm2","Csca_nm2","Cabs_nm2")})
@@ -53,3 +61,31 @@ def calculate():
 
 if __name__=="__main__":
     app.run(host="127.0.0.1",port=8766,debug=False)
+
+@app.post("/api/material/validate")
+def validate_material():
+    try:
+        record=MaterialRecord.from_json(__import__("json").dumps(request.get_json(force=True)))
+        csv,sidecar=export_fmm_material(record)
+        return jsonify({"valid":True,"material_id":record.material_id,"fmm_csv":csv,"fmm_metadata_json":sidecar})
+    except (ValueError,TypeError,KeyError) as exc:
+        return jsonify({"error":str(exc)}),400
+
+@app.post("/api/meep2d/export")
+def export_meep2d():
+    try:
+        job=Meep2DJob(**request.get_json(force=True))
+        return jsonify(__import__("json").loads(job.export_json()))
+    except (ValueError,TypeError,PermissionError) as exc:
+        return jsonify({"error":str(exc)}),400
+
+@app.post("/api/ellipsometry/fit")
+def fit_ellipsometry_api():
+    try:
+        p=request.get_json(force=True)
+        return jsonify(fit_ellipsometry(p["wavelength_nm"],p["psi_deg"],p["delta_deg"],p["angles_deg"],
+                 substrate_n=float(p.get("substrate_n",1.5)),
+                 initial=p.get("initial",[1.7,.02,100]),
+                 lower=p.get("lower",[1.01,0,1]),upper=p.get("upper",[5,3,3000])))
+    except (ValueError,TypeError,KeyError) as exc:
+        return jsonify({"error":str(exc)}),400
