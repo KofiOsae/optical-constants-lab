@@ -43,7 +43,7 @@ hr{border:0;border-top:1px solid #34465e}
 .plot-panel .plot{height:335px}
 @media(max-width:750px){.plot-toolbar{align-items:stretch}.plot-toolbar label{display:block}.plot-toolbar select{width:100%}}
 
-.workspace-tabs{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}.workspace-tab{background:#203851;color:#c8dced;border:1px solid #415a74;padding:7px 14px}.workspace-tab.active{background:#53b4e5;color:#071a2b}.tab-content{margin:12px auto;max-width:1150px;min-height:65vh}.tab-content[hidden]{display:none!important}.mode-switch{display:flex;align-items:center;gap:10px;margin:2px 0 8px;font-weight:600}.mode-switch select{max-width:380px}#fraction_compare_property{width:100%;min-height:185px;max-height:220px;overflow-y:auto;background:#0d1a2d}#fraction_compare_property option{padding:8px 12px}#fraction_compare_property option:checked{background:#255879;color:#fff}#fill_comparison[hidden],#infiltration_comparison[hidden],#spectra_group[hidden]{display:none!important}.model-group{margin:9px 0}.model-group>summary{color:#8bdbff;font-size:14px}.model-group>.level-banner{display:none}#diagnostics_panel details{margin:7px 0}#diagnostics_panel #assisted_panel{border-color:#416c83}.layout{grid-template-columns:minmax(260px,1.05fr) minmax(420px,2.05fr) minmax(260px,.95fr)}#configuration_panel{max-height:calc(100vh - 128px);overflow:auto}#diagnostics_panel{max-height:calc(100vh - 128px);overflow:auto}@media(max-width:1100px){#configuration_panel,#diagnostics_panel{max-height:none}}</style></head><body>
+.workspace-tabs{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}.workspace-tab{background:#203851;color:#c8dced;border:1px solid #415a74;padding:7px 14px}.workspace-tab.active{background:#53b4e5;color:#071a2b}.tab-content{margin:12px auto;max-width:1150px;min-height:65vh}.tab-content[hidden]{display:none!important}.mode-switch{display:flex;align-items:center;gap:10px;margin:2px 0 8px;font-weight:600}.mode-switch select{max-width:380px}#fraction_compare_property{width:100%;min-height:185px;max-height:220px;overflow-y:auto;background:#0d1a2d}#fraction_compare_property option{padding:8px 12px}#fraction_compare_property option:checked{background:#255879;color:#fff}#fill_comparison[hidden],#infiltration_comparison[hidden],#spectra_group[hidden]{display:none!important}.model-group{margin:9px 0}.model-group>summary{color:#8bdbff;font-size:14px}.model-group>.level-banner{display:none}#diagnostics_panel details{margin:7px 0}#diagnostics_panel #assisted_panel{border-color:#416c83}.layout{grid-template-columns:minmax(260px,1.05fr) minmax(420px,2.05fr) minmax(260px,.95fr)}#configuration_panel{max-height:calc(100vh - 128px);overflow:auto}#diagnostics_panel{max-height:calc(100vh - 128px);overflow:auto}@media(max-width:1100px){#configuration_panel,#diagnostics_panel{max-height:none}}.workflow-config[hidden],.workflow-result[hidden],.plots[hidden],.model-group[hidden]{display:none!important}.workflow-config{padding:8px 0}.workflow-config>h3,.workflow-result>h2{margin:0 0 12px}.workflow-result{min-height:400px}.result-text{white-space:pre-wrap;overflow:auto;max-height:60vh;background:#0b182a;border:1px solid #344a60;padding:12px;border-radius:6px}#meep_field_plot{min-height:420px}</style></head><body>
 <header><h1>Nanoparticle Optics & Effective-Medium Modelling</h1>
 <small>Isolated research preview · Not the published Optical Constants Laboratory · Dispersive materials · research-only scientific models</small><nav class="workspace-tabs" aria-label="Research workbench sections"><button type="button" class="workspace-tab active" data-tab="workbench" data-mode="spectra">Spectral analysis</button><button type="button" class="workspace-tab" data-tab="workbench" data-mode="fill">Fill-factor comparison</button><button type="button" class="workspace-tab" data-tab="workbench" data-mode="infiltration">Pore infiltration</button><button type="button" class="workspace-tab" data-tab="theory">Theory &amp; interpretation</button><button type="button" class="workspace-tab" data-tab="ellipsometry">Ellipsometry</button><button type="button" class="workspace-tab" data-tab="meep">Meep / Colab</button></nav></header>
 <main class="layout" id="workbench_panel"><section id="configuration_panel"><h2>Model configuration</h2><div class="level-banner">1 · Intrinsic material properties <small>Host and particle n, k, ε₁, ε₂</small></div>
@@ -78,6 +78,51 @@ function initializeResearchWorkspace(){
  byId("diagnostics_mode").addEventListener("change",setDiagnosticsMode);setDiagnosticsMode();
  for(const [id,tab] of [["theory_tool","theory_panel"],["ellipsometry_tool","ellipsometry_panel"],["meep_tool","meep_panel"]]){
   const el=byId(id);byId(tab).append(el);el.open=true;
+ }
+ // Dedicated scientific workflows use the same left / centre / right column contract.
+ // Move existing elements, never clone them: listeners and uploaded inputs are preserved.
+ const sharedConfig=byId("configuration_panel"),response=byId("response_panel");
+ const diagnosticTitle=diag.querySelector("h2");
+ const ellipsTool=byId("ellipsometry_tool"),meepTool=byId("meep_tool");
+ const ellipsConfig=document.createElement("div");ellipsConfig.id="ellips_config";ellipsConfig.className="workflow-config";
+ const meepConfig=document.createElement("div");meepConfig.id="meep_config";meepConfig.className="workflow-config";
+ for(const [tool,target] of [[ellipsTool,ellipsConfig],[meepTool,meepConfig]]){
+   const heading=document.createElement("h3");heading.textContent=tool.querySelector("summary").textContent;target.append(heading);
+   for(const node of [...tool.children]){
+     if(node.tagName==="SUMMARY"||node.tagName==="HR")continue;
+     if(node.id==="meep_field_plot")continue;
+     target.append(node);
+   }
+   sharedConfig.append(target);
+ }
+ const ellipsResult=document.createElement("div");ellipsResult.id="ellips_result";ellipsResult.className="workflow-result";
+ ellipsResult.innerHTML="<h2>Calculated ellipsometry response</h2><p class='note'>Fit results and numerical diagnostics appear here. The current inverse model assumes a constant-n,k single film; inspect fit residuals before interpreting extracted values.</p><pre id='ellips_result_text' class='result-text'>Import measurements and run the inversion to display results.</pre>";
+ const meepResult=document.createElement("div");meepResult.id="meep_result";meepResult.className="workflow-result";
+ meepResult.innerHTML="<h2>Meep · simulated fields</h2><p class='note'>Imported field snapshots are not optical constants or validated scattering cross-sections.</p>";
+ meepResult.append(byId("meep_field_plot"));
+ const meepMessage=document.createElement("p");meepMessage.id="meep_result_message";meepMessage.className="note";meepMessage.textContent="Generate a prepared notebook, run it in Colab, then import its field CSV.";
+ meepResult.append(meepMessage);
+ response.append(ellipsResult,meepResult);
+ const theoryResult=document.createElement("div");theoryResult.id="theory_result";theoryResult.className="workflow-result";
+ theoryResult.innerHTML="<h2>Theory &amp; interpretation</h2>";
+ for(const node of [...byId("theory_tool").children])if(node.tagName!=="SUMMARY")theoryResult.append(node);
+ response.append(theoryResult);
+ const workflowNotes=document.createElement("div");workflowNotes.id="workflow_diagnostics";
+ workflowNotes.innerHTML="<h3>Workflow diagnostics</h3><p class='note' id='workflow_diagnostic_hint'></p>";
+ diag.append(workflowNotes);
+ function showWorkflow(name){
+   const workbench=["spectra","fill","infiltration"].includes(name);
+   sharedConfig.querySelectorAll(".model-group").forEach(el=>{if(!el.classList.contains("analysis-settings"))el.hidden=!workbench});
+   ellipsConfig.hidden=name!=="ellipsometry";meepConfig.hidden=name!=="meep";
+   ellipsResult.hidden=name!=="ellipsometry";meepResult.hidden=name!=="meep";theoryResult.hidden=name!=="theory";
+   response.querySelector(".plots").hidden=!workbench;
+   diag.querySelector("#diagnostics_mode").closest("label").hidden=!workbench;
+   for(const id of ["assisted_panel","material_library","distribution_tool"])byId(id).hidden=!workbench;
+   workflowNotes.hidden=workbench;
+   diagnosticTitle.textContent=workbench?"Diagnostics & assistance":"Diagnostics & guidance";
+   const hint=byId("workflow_diagnostic_hint");
+   hint.textContent=name==="ellipsometry"?"Verify measured angle and wavelength grids, Ψ/Δ units, fit residuals, parameter identifiability and thickness constraints.":name==="meep"?"Verify geometry, mesh resolution, PML convergence, runtime installation and field finiteness. 2D cylinders and 3D spheres are not interchangeable.":"Review model assumptions, validity ranges, energy conservation and experimental constraints.";
+   if(name==="meep")requestAnimationFrame(()=>{const plot=byId("meep_field_plot");if(plot.data&&plot.offsetWidth)Plotly.Plots.resize(plot)});
  }
  // Preserve every existing input and its event handlers while grouping by physical model.
  const config=byId("configuration_panel");
@@ -171,8 +216,10 @@ function initializeResearchWorkspace(){
  byId("analysis_mode").addEventListener("change",()=>{setAnalysisMode();selectTab("workbench")});
  setAnalysisMode();
  function selectTab(name){
-  byId("workbench_panel").hidden=name!=="workbench";
-  for(const id of ["theory","ellipsometry","meep"])byId(id+"_panel").hidden=name!==id;
+  const mode=name==="workbench"?byId("analysis_mode").value:name;
+  showWorkflow(mode);
+  byId("workbench_panel").hidden=false;
+  for(const id of ["theory","ellipsometry","meep"])byId(id+"_panel").hidden=true;
   for(const btn of document.querySelectorAll(".workspace-tab")){const active=btn.dataset.tab===name&&(name!=="workbench"||btn.dataset.mode===byId("analysis_mode").value);btn.classList.toggle("active",active);btn.setAttribute("aria-selected",String(active))}
   if(name==="workbench")requestAnimationFrame(()=>requestAnimationFrame(()=>{for(const id of ["cross","nk","fraction_compare_plot","sensing_plot"]){const plot=byId(id);if(plot&&plot.data&&plot.offsetWidth>0)Plotly.Plots.resize(plot)}}));
  }
