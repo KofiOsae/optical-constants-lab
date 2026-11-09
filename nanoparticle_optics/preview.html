@@ -80,7 +80,7 @@ function initializeResearchWorkspace(){
  // Preserve every existing input and its event handlers while grouping by physical model.
  const config=byId("configuration_panel");
  const banners=[...config.querySelectorAll(":scope > .level-banner")];
- for(let i=banners.length-1;i>=0;i--){
+ for(let i=0;i<banners.length;i++){
   const banner=banners[i],next=banners[i+1]||null;
   const details=document.createElement("details");details.className="model-group";details.open=i===0;
   const summary=document.createElement("summary");summary.textContent=banner.textContent.trim().replace(/\\s+/g," ");
@@ -110,7 +110,6 @@ function initializeResearchWorkspace(){
  for(const btn of document.querySelectorAll(".workspace-tab"))btn.addEventListener("click",()=>selectTab(btn.dataset.tab));
  selectTab("workbench");
 }
-initializeResearchWorkspace();
 const OCL_PLOT_THEME={paper_bgcolor:"#111f33",plot_bgcolor:"#111f33",font:{color:"#dceafb",family:"system-ui,Arial",size:12},colorway:["#53b4e5","#f7a35c","#6ccaa8","#e58fbe","#b59dff"],xaxis:{gridcolor:"#30435d",zerolinecolor:"#405673",linecolor:"#7086a1",tickfont:{color:"#dceafb"}},yaxis:{gridcolor:"#30435d",zerolinecolor:"#405673",linecolor:"#7086a1",tickfont:{color:"#dceafb"}},legend:{font:{color:"#dceafb"},bgcolor:"rgba(0,0,0,0)"},margin:{t:55,r:75,b:65,l:75}};
 const originalNewPlot=Plotly.newPlot.bind(Plotly);
 Plotly.newPlot=(element,traces,layout={},config={})=>originalNewPlot(element,traces,{...OCL_PLOT_THEME,...layout,
@@ -321,6 +320,7 @@ document.getElementById("meep_notebook").onclick=async()=>{
  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="ocl_meep_"+dim+"d_preconfigured.ipynb";a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
  document.getElementById("tool_output").textContent="Notebook prepared and downloaded. Open Colab → File → Upload notebook → review/authorize runtime → Run all. Current runtime must have PyMeep installed.";
 };
+initializeResearchWorkspace();
 previewDistribution();
 document.getElementById("run").click();
 </script></body></html>
