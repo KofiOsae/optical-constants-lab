@@ -22,6 +22,7 @@ from nanoparticle_optics.film_tmm import film_rt
 from nanoparticle_optics.meep_colab import MeepJob, make_notebook
 from nanoparticle_optics.dispersion_models import model_epsilon
 from nanoparticle_optics.three_phase import three_phase_epsilon
+from nanoparticle_optics.regime import scattering_regime
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -87,6 +88,13 @@ def calculate():
         result["regime_guidance"]=("Rayleigh approximation needs sufficiently small x and |m|x; "
           "Mie applies to isolated homogeneous spheres. Aggregates and nonspherical particles need other solvers.")
         result["scattering_model_limitations"]="Independent spheres in lossless host; transport attenuation is not added to coherent film TMM."
+        shape=p.get("particle_shape","sphere")
+        aggregate=bool(p.get("aggregate",False))
+        if np.all(np.abs(host_nk.imag)<1e-12):
+            result["regime_diagnostics"]=scattering_regime(wl,radius_for_regime,host_nk,particle_nk,aggregate=aggregate,shape=shape)
+        if shape!="sphere" or aggregate:
+            result["warning"]="Spherical Mie disabled for nonspherical or aggregated particles; use an external geometry solver."
+            return jsonify(result)
         if np.all(np.abs(host_nk.imag)<1e-12):
             radius=float(p.get("radius_nm",30))
             if p.get("distribution","single")!="single":
