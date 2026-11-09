@@ -42,7 +42,8 @@ def calculate():
         nk=np.sqrt(eps+0j)
         if nk.imag<0: nk=-nk
         result={"wavelength_nm":wl.tolist(),"volume_fraction":f,"effective_n":[float(nk.real)]*len(wl),
-                "effective_k":[float(nk.imag)]*len(wl),"method":method}
+                "effective_k":[float(nk.imag)]*len(wl),"effective_epsilon1":[float(eps.real)]*len(wl),
+                "effective_epsilon2":[float(eps.imag)]*len(wl),"method":method}
         # A transparent nonabsorbing host is required for the Mie implementation.
         if host.imag==0:
             radius=float(p.get("radius_nm",30))
