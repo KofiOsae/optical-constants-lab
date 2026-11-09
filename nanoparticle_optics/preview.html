@@ -152,7 +152,7 @@ document.getElementById("sensing_export").onclick=()=>{
  const [a,b]=sensingResults;
  const lines=["wavelength_nm,before_"+k+",after_"+k+",delta_"+k];
  for(let i=0;i<a.wavelength_nm.length;i++)lines.push([a.wavelength_nm[i],a[k][i],b[k][i],b[k][i]-a[k][i]].join(","));
- const url=URL.createObjectURL(new Blob([lines.join("\\n")],{type:"text/csv"}));
+ const url=URL.createObjectURL(new Blob([lines.join("\n")],{type:"text/csv"}));
  const link=document.createElement("a");link.href=url;link.download="ocl_infiltration_"+k+".csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 let comparisonResults=null;
