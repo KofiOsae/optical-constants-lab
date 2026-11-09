@@ -18,6 +18,7 @@ from nanoparticle_optics.meep2d import Meep2DJob
 from nanoparticle_optics.ellipsometry_inverse import fit_ellipsometry
 from nanoparticle_optics.ellipsometry_csv import parse_ellipsometry_csv
 from nanoparticle_optics.optical_csv import parse_optical_csv, interpolate_epsilon
+from nanoparticle_optics.film_tmm import film_rt
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -54,6 +55,13 @@ def calculate():
                 "effective_epsilon2":eps.imag.tolist(),"method":method,
                 "host_n":host_nk.real.tolist(),"host_k":host_nk.imag.tolist(),
                 "particle_n":particle_nk.real.tolist(),"particle_k":particle_nk.imag.tolist()}
+        if p.get("film_thickness_nm") is not None:
+            substrate=float(p.get("substrate_n",1.5))
+            film=film_rt(wl,nk,float(p["film_thickness_nm"]),substrate_n=substrate)
+            result.update({key:film[key].tolist() for key in ("R","T","A")})
+            result["film_thickness_nm"]=float(p["film_thickness_nm"])
+            result["substrate_n"]=substrate
+            result["film_model"]="coherent_specular_TMM_no_diffuse_scattering"
         # A transparent nonabsorbing host is required for the Mie implementation.
         if np.all(np.abs(host_nk.imag)<1e-12):
             radius=float(p.get("radius_nm",30))
