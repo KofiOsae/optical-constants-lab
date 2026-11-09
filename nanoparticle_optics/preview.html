@@ -57,9 +57,16 @@ document.getElementById("histogram_file").onchange=async(e)=>{
   document.getElementById("histogram_radii_nm").value=radius.join(",");
   document.getElementById("histogram_number_weights").value=weights.join(",");
   document.getElementById("distribution").value="histogram";
+  await previewDistribution();
   document.getElementById("status").textContent="Loaded "+rows.length+" experimental number-weighted bins from "+file.name;
  }catch(err){document.getElementById("status").textContent="CSV import error: "+err.message}
 };
+async function previewDistribution(){
+ const p={};for(const key of ["distribution","radius_nm","spread","second_radius_nm","mixture_fraction"])p[key]=document.getElementById(key).value;
+ for(const key of ["histogram_radii_nm","histogram_number_weights"]){const v=document.getElementById(key).value.trim();if(v)p[key]=v.split(",").map(Number)}
+ try{const response=await fetch("/api/distribution",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});const data=await response.json();if(!response.ok)throw Error(data.error);Plotly.newPlot("distribution_plot",[{x:data.radii_nm,y:data.number_weights,name:"Number weight",type:"bar"},{x:data.radii_nm,y:data.volume_weights,name:"Volume weight",type:"bar"}],{barmode:"group",margin:{t:25,b:45},xaxis:{title:"Radius (nm)"},yaxis:{title:"Bin probability"}})}catch(e){document.getElementById("status").textContent="Distribution preview: "+e.message}
+}
+for(const key of ["distribution","radius_nm","spread","second_radius_nm","mixture_fraction","histogram_radii_nm","histogram_number_weights"]){document.getElementById(key).addEventListener("change",previewDistribution)}
 document.getElementById("run").onclick=async()=>{
  const p={};for(const key of keys)p[key]=document.getElementById(key).value;
  for(const key of ["histogram_radii_nm","histogram_number_weights"]){const v=document.getElementById(key).value.trim();if(v)p[key]=v.split(",").map(Number)}
@@ -85,5 +92,6 @@ async function toolPost(url,payload){const output=document.getElementById("tool_
 document.getElementById("material_run").onclick=()=>{try{toolPost("/api/material/validate",JSON.parse(document.getElementById("material_json").value))}catch(e){document.getElementById("tool_output").textContent=e.message}};
 document.getElementById("ellips_run").onclick=()=>{try{toolPost("/api/ellipsometry/fit",JSON.parse(document.getElementById("ellips_json").value))}catch(e){document.getElementById("tool_output").textContent=e.message}};
 document.getElementById("meep_run").onclick=()=>toolPost("/api/meep2d/export",{wavelength_nm:550,cylinder_radius_nm:Number(document.getElementById("radius_nm").value),cylinder_index_n:Number(document.getElementById("particle_n").value),cylinder_index_k:Number(document.getElementById("particle_k").value),host_index:Number(document.getElementById("host_n").value),user_selected:true});
+previewDistribution();
 document.getElementById("run").click();
 </script></body></html>
