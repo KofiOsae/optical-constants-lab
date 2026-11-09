@@ -40,11 +40,11 @@ def mie_anisotropy(wavelength_nm,radius_nm,particle_index,host_index=1.0):
     """
     wl=np.asarray(wavelength_nm,float)
     index=np.asarray(particle_index,complex)
-    wl,index=np.broadcast_arrays(wl,index)
+    wl,index,host=np.broadcast_arrays(wl,index,np.asarray(host_index,float))
     out=np.empty(wl.shape);qs=np.empty(wl.shape)
     undefined=np.zeros(wl.shape,dtype=bool)
     for idx in np.ndindex(wl.shape):
-        x,ell,a,b=_coefficients(wl[idx],radius_nm,index[idx],host_index)
+        x,ell,a,b=_coefficients(wl[idx],radius_nm,index[idx],host[idx])
         q=2/x**2*np.sum((2*ell+1)*(np.abs(a)**2+np.abs(b)**2))
         qs[idx]=q
         if q<=1e-24:
