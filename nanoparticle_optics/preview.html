@@ -223,7 +223,7 @@ document.getElementById("run").onclick=async()=>{
  const status=document.getElementById("status");status.textContent="Calculating...";
  try{const response=await fetch("/api/calculate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});
  const data=await response.json();if(!response.ok)throw Error(data.error||"Calculation failed");
- latest=data;document.getElementById("export").disabled=false;
+ latest=data;renderAssessment(data);document.getElementById("export").disabled=false;
  renderEffective(data);
  renderObservable(data);
  if(data.radii_nm){Plotly.newPlot("distribution_plot",[{x:data.radii_nm,y:data.number_weights,name:"Number weights",type:"bar"},{x:data.radii_nm,y:data.volume_weights,name:"Volume weights",type:"bar"}],{barmode:"group",margin:{t:20},xaxis:{title:"Radius (nm)"}})}
