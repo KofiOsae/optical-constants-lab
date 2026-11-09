@@ -29,10 +29,10 @@ def sphere_phase_function(wavelength_nm,radius_nm,particle_index,host_index=1.,
     perp=np.abs(S1)**2/(k*k)
     para=np.abs(S2)**2/(k*k)
     total=.5*(perp+para)
-    csca=2*np.pi*np.trapezoid(total*np.sin(np.deg2rad(theta)),np.deg2rad(theta))
+    csca=2*np.pi*np.trapz(total*np.sin(np.deg2rad(theta)),np.deg2rad(theta))
     if csca<=0 or not np.isfinite(csca):raise ValueError("Angular scattering normalization undefined")
     phase=total/csca
     return {"angle_deg":theta,"phase_sr_inv":phase,
             "perpendicular_nm2_sr":perp,"parallel_nm2_sr":para,
             "Csca_angular_nm2":float(csca),
-            "g_angular":float(2*np.pi*np.trapezoid(phase*mu*np.sin(np.deg2rad(theta)),np.deg2rad(theta)))}
+            "g_angular":float(2*np.pi*np.trapz(phase*mu*np.sin(np.deg2rad(theta)),np.deg2rad(theta)))}
