@@ -253,6 +253,7 @@ function renderFractionComparison(){
  if(!comparisonResults)return;
  const property=document.getElementById("fraction_compare_property").value;
  const traces=comparisonResults.map(({fraction,data})=>({x:data.wavelength_nm,y:data[property],name:(100*fraction).toLocaleString()+"% · "+property,mode:"lines"}));
+ if(traces.some(t=>!Array.isArray(t.y)))throw Error("Selected optical property unavailable; verify film settings.");
  return Plotly.newPlot("fraction_compare_plot",traces,{title:"EMA fill-factor comparison · "+property,xaxis:{title:"Wavelength (nm)"},yaxis:{title:property},paper_bgcolor:"#111f33",plot_bgcolor:"#111f33",font:{color:"#e7eefb"},margin:{t:55,r:20,b:55,l:65}});
 }
 document.getElementById("fraction_compare_property").onchange=renderFractionComparison;
@@ -273,6 +274,7 @@ document.getElementById("compare_fraction").onclick=async()=>{
  addMaterialModels(p);
  if(uploadedMaterials.host)p.host_material=uploadedMaterials.host;
  if(uploadedMaterials.particle)p.particle_material=uploadedMaterials.particle;
+ p.aggregate=document.getElementById("aggregate").checked;
  const raw=document.getElementById("fraction_compare_values").value.split(",").map(v=>v.trim());
  if(raw.length<2||raw.length>12||raw.some(v=>v===""))throw Error("Enter 2–12 comma-separated fill factors");
  const fs=raw.map(Number);
@@ -285,7 +287,7 @@ document.getElementById("compare_fraction").onclick=async()=>{
  const d=await response.json();if(!response.ok)throw Error(d.error||"EMA calculation failed");
  rows.push({fraction,data:d});
  }
- comparisonResults=rows;document.getElementById("fraction_compare_export").disabled=false;await new Promise(resolve=>requestAnimationFrame(resolve));await renderFractionComparison();
+ comparisonResults=rows;document.getElementById("fraction_compare_export").disabled=false;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));await renderFractionComparison();
  const last=rows.map(({fraction,data})=>"f="+fraction+": n_eff(λmin)="+Number(data.effective_n[0]).toFixed(5));
  status.textContent=rows.length+" calculations completed. "+last.join(" | ")+" · Check EMA validity for the selected fractions.";
  }catch(e){comparisonResults=null;document.getElementById("fraction_compare_export").disabled=true;status.textContent="Comparison error: "+e.message}
