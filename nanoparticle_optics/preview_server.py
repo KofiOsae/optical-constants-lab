@@ -20,6 +20,7 @@ from nanoparticle_optics.ellipsometry_csv import parse_ellipsometry_csv
 from nanoparticle_optics.optical_csv import parse_optical_csv, interpolate_epsilon
 from nanoparticle_optics.film_tmm import film_rt
 from nanoparticle_optics.meep_colab import MeepJob, make_notebook
+from nanoparticle_optics.dispersion_models import model_epsilon
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -41,8 +42,8 @@ def calculate():
         method=p.get("method","maxwell_garnett")
         if method not in ("maxwell_garnett","bruggeman"):
             raise ValueError("Unknown effective-medium model")
-        host_eps=interpolate_epsilon(p["host_material"],wl) if p.get("host_material") else np.full(wl.shape,host**2,dtype=complex)
-        particle_eps=interpolate_epsilon(p["particle_material"],wl) if p.get("particle_material") else np.full(wl.shape,inc**2,dtype=complex)
+        host_eps=(interpolate_epsilon(p["host_material"],wl) if p.get("host_material") else model_epsilon(p["host_model"],wl) if p.get("host_model") else np.full(wl.shape,host**2,dtype=complex))
+        particle_eps=(interpolate_epsilon(p["particle_material"],wl) if p.get("particle_material") else model_epsilon(p["particle_model"],wl) if p.get("particle_model") else np.full(wl.shape,inc**2,dtype=complex))
         eps=np.array([(maxwell_garnett if method=="maxwell_garnett" else bruggeman)(eh,ep,f)
                       for eh,ep in zip(host_eps,particle_eps)],dtype=complex)
         nk=np.sqrt(eps+0j)
