@@ -21,6 +21,7 @@ from nanoparticle_optics.optical_csv import parse_optical_csv, interpolate_epsil
 from nanoparticle_optics.film_tmm import film_rt
 from nanoparticle_optics.meep_colab import MeepJob, make_notebook
 from nanoparticle_optics.dispersion_models import model_epsilon
+from nanoparticle_optics.three_phase import three_phase_epsilon
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -44,8 +45,22 @@ def calculate():
             raise ValueError("Unknown effective-medium model")
         host_eps=(interpolate_epsilon(p["host_material"],wl) if p.get("host_material") else model_epsilon(p["host_model"],wl) if p.get("host_model") else np.full(wl.shape,host**2,dtype=complex))
         particle_eps=(interpolate_epsilon(p["particle_material"],wl) if p.get("particle_material") else model_epsilon(p["particle_model"],wl) if p.get("particle_model") else np.full(wl.shape,inc**2,dtype=complex))
-        eps=np.array([(maxwell_garnett if method=="maxwell_garnett" else bruggeman)(eh,ep,f)
-                      for eh,ep in zip(host_eps,particle_eps)],dtype=complex)
+        pore_fraction=float(p.get("pore_fraction",0))
+        pore_n=float(p.get("pore_n",1))
+        pore_k=float(p.get("pore_k",0))
+        if not (0<=f<=1 and 0<=pore_fraction<=1 and f+pore_fraction<=1):
+            raise ValueError("Particle and pore fractions must sum to at most 1")
+        if pore_n<=0 or pore_k<0:raise ValueError("Invalid passive pore optical constants")
+        pore_eps=np.full(wl.shape,complex(pore_n,pore_k)**2,dtype=complex)
+        if p.get("pore_material"):
+            pore_eps=interpolate_epsilon(p["pore_material"],wl)
+        elif p.get("pore_model"):
+            pore_eps=model_epsilon(p["pore_model"],wl)
+        if pore_fraction>0:
+            eps=three_phase_epsilon(host_eps,particle_eps,pore_eps,f,pore_fraction,method)
+        else:
+            eps=np.array([(maxwell_garnett if method=="maxwell_garnett" else bruggeman)(eh,ep,f)
+                          for eh,ep in zip(host_eps,particle_eps)],dtype=complex)
         nk=np.sqrt(eps+0j)
         nk=np.where(nk.imag<0,-nk,nk)
         host_nk=np.sqrt(host_eps+0j)
@@ -54,7 +69,8 @@ def calculate():
         particle_nk=np.where(particle_nk.imag<0,-particle_nk,particle_nk)
         result={"wavelength_nm":wl.tolist(),"volume_fraction":f,"effective_n":nk.real.tolist(),
                 "effective_k":nk.imag.tolist(),"effective_epsilon1":eps.real.tolist(),
-                "effective_epsilon2":eps.imag.tolist(),"method":method,
+                "effective_epsilon2":eps.imag.tolist(),"method":method,"pore_fraction":pore_fraction,"host_fraction":1-f-pore_fraction,
+                "pore_n":np.sqrt(pore_eps).real.tolist(),"pore_k":np.sqrt(pore_eps).imag.tolist(),
                 "host_n":host_nk.real.tolist(),"host_k":host_nk.imag.tolist(),
                 "particle_n":particle_nk.real.tolist(),"particle_k":particle_nk.imag.tolist()}
         if p.get("film_thickness_nm") is not None:
