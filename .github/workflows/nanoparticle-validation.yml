@@ -22,4 +22,4 @@ jobs:
       - name: Install numerical test dependencies
         run: python -m pip install numpy scipy pytest
       - name: Run independent nanoparticle unit tests
-        run: python -m pytest -q tests/test_nanoparticle_effective_medium.py tests/test_nanoparticle_mie.py tests/test_nanoparticle_ensemble.py tests/test_nanoparticle_scientific_benchmarks.py
+        run: python -m pytest -q tests/test_nanoparticle_effective_medium.py tests/test_nanoparticle_mie.py tests/test_nanoparticle_ensemble.py tests/test_nanoparticle_scientific_benchmarks.py tests/test_nanoparticle_materials.py tests/test_nanoparticle_ellipsometry.py tests/test_nanoparticle_meep2d.py tests/test_nanoparticle_fmm.py
