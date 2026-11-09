@@ -36,4 +36,23 @@ def model_epsilon(model,wavelength_nm):
         n=A+B/um**2+C/um**4
         if not np.all(np.isfinite(n)) or np.any(n<=0):raise ValueError("Invalid Cauchy index")
         return (n*n).astype(complex)
+    if kind in ("lorentz","drude_lorentz"):
+        # E = hc/lambda, eV; passive exp(-i omega t) convention.
+        energy=1239.841984/ wl
+        eps=np.full(wl.shape,complex(float(model.get("epsilon_inf",1)),0))
+        if kind=="drude_lorentz":
+            wp=float(model.get("plasma_ev",0))
+            gamma=float(model.get("drude_gamma_ev",0))
+            if wp<0 or gamma<=0:raise ValueError("Drude plasma >=0 and damping >0 required")
+            eps-=wp**2/(energy**2+1j*gamma*energy)
+        for oscillator in model.get("oscillators",[]):
+            strength=float(oscillator["strength"])
+            resonance=float(oscillator["energy_ev"])
+            damping=float(oscillator["gamma_ev"])
+            if strength<0 or resonance<=0 or damping<=0:
+                raise ValueError("Lorentz strength >=0, resonance and damping >0 required")
+            eps+=strength*resonance**2/(resonance**2-energy**2-1j*damping*energy)
+        if np.any(~np.isfinite(eps)) or np.any(eps.imag<-1e-10):
+            raise ValueError("Nonpassive or invalid dielectric response")
+        return eps
     raise ValueError("Unsupported dispersion model")
