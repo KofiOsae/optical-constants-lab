@@ -70,9 +70,6 @@ def calculate():
     except (ValueError,TypeError,OverflowError,ZeroDivisionError) as exc:
         return jsonify({"error":str(exc)}),400
 
-if __name__=="__main__":
-    app.run(host="127.0.0.1",port=8766,debug=False)
-
 @app.post("/api/material/validate")
 def validate_material():
     try:
@@ -133,3 +130,6 @@ def angular_api():
           "g_angular":float(2*np.pi*np.trapz(phase*np.cos(np.deg2rad(theta))*np.sin(np.deg2rad(theta)),np.deg2rad(theta)))})
     except (ValueError,TypeError,KeyError,OverflowError,ZeroDivisionError) as exc:
         return jsonify({"error":str(exc)}),400
+
+if __name__=="__main__":
+    app.run(host="127.0.0.1",port=8766,debug=False)
