@@ -81,6 +81,12 @@ def calculate():
             result["substrate_n"]=substrate
             result["film_model"]="coherent_specular_TMM_no_diffuse_scattering"
         # A transparent nonabsorbing host is required for the Mie implementation.
+        radius_for_regime=float(p.get("radius_nm",30))
+        size_parameter=2*np.pi*np.maximum(host_nk.real,0)*radius_for_regime/wl
+        result["size_parameter"]=size_parameter.tolist()
+        result["regime_guidance"]=("Rayleigh approximation needs sufficiently small x and |m|x; "
+          "Mie applies to isolated homogeneous spheres. Aggregates and nonspherical particles need other solvers.")
+        result["scattering_model_limitations"]="Independent spheres in lossless host; transport attenuation is not added to coherent film TMM."
         if np.all(np.abs(host_nk.imag)<1e-12):
             radius=float(p.get("radius_nm",30))
             if p.get("distribution","single")!="single":
