@@ -50,13 +50,13 @@ hr{border:0;border-top:1px solid #34465e}
 <label>Host k<input id="host_k" type="number" step=".01" value="0"></label>
 <label>Particle n<input id="particle_n" type="number" step=".01" value="2"></label>
 <label>Particle k<input id="particle_k" type="number" step=".01" value=".1"></label>
-<label>Particle volume fraction<input id="fraction" type="number" step=".01" min="0" max="1" value=".1"></label>
+<label>Particle volume fraction / fill factor f (0–1)<input id="fraction" type="number" step=".01" min="0" max="1" value=".1"></label>
 <label>Particle radius (nm)<input id="radius_nm" type="number" min=".1" value="30"></label>
 <label>Distribution<select id="distribution"><option value="single">Monodisperse</option><option value="lognormal">Lognormal</option><option value="normal">Gaussian (truncated)</option><option value="gamma">Gamma</option><option value="weibull">Weibull</option><option value="bimodal">Bimodal</option><option value="histogram">Experimental histogram</option></select></label>
 <label>Distribution relative spread<input id="spread" type="number" step=".05" min="0" value=".2"></label><label>Second radius for bimodal (nm)<input id="second_radius_nm" type="number" value="60"></label><label>Bimodal first-population fraction<input id="mixture_fraction" type="number" step=".1" value=".5"></label><label>Upload experimental size histogram (CSV)<input id="histogram_file" type="file" accept=".csv,text/csv"></label><p class="note">CSV columns: size_nm,count. Use radius_nm or diameter_nm for explicit geometry. For weighted measurements, use number_weight. DLS intensity_weight is not automatically converted to number weights.</p><label>Measured radius histogram (nm, comma-separated)<input id="histogram_radii_nm" placeholder="10,20,30"></label><label>Measured number counts (comma-separated)<input id="histogram_number_weights" placeholder="5,10,3"></label>
 <label>Wavelength start (nm)<input id="start_nm" type="number" value="400"></label>
 <label>Wavelength end (nm)<input id="end_nm" type="number" value="900"></label>
-<details><summary>Effective-medium film · coherent R/T</summary><label>Film thickness (nm)<input id="film_thickness_nm" type="number" min="0" value="200"></label><label>Substrate refractive index<input id="substrate_n" type="number" step=".01" value="1.5"></label><p class="note">Coherent specular TMM at normal incidence. R+T+A=1 for a passive film; diffuse scattering and haze are not included.</p></details><button id="run">Calculate spectra</button> <button id="export" disabled>Export CSV</button>
+<details><summary>Effective-medium film · coherent R/T</summary><label>Film thickness (nm)<input id="film_thickness_nm" type="number" min="0" value="200"></label><label>Substrate refractive index<input id="substrate_n" type="number" step=".01" value="1.5"></label><p class="note">Coherent specular TMM at normal incidence. R+T+A=1 for a passive film; diffuse scattering and haze are not included.</p></details><button id="run">Calculate spectra</button><details><summary>Compare fill factors · SiO₂–PMMA example</summary><p class="note">Uses current host and particle dispersion inputs, wavelength range and EMA model. Select PMMA host dispersion and the SiO₂ Malitson particle preset, then compare f = 0, 0.05, 0.10, 0.20. The 20% case is exploratory; model validity requires review.</p><button id="compare_fraction" type="button">Compare 0%, 5%, 10%, 20%</button><div id="fraction_compare_plot" class="plot"></div><div id="fraction_compare_status" class="note"></div></details> <button id="export" disabled>Export CSV</button>
 <div id="status" role="status"></div>
 <p class="note">Upload dispersive material CSV files or use constant optical indices. Mie assumes a lossless host and independent spherical particles. Effective-medium theory assumes subwavelength inclusions. These models describe different approximations and must not be interpreted as equivalent.</p>
 </section><section><h2>Calculated optical response</h2><div class="plots">
@@ -105,6 +105,28 @@ async function previewDistribution(){
  try{const response=await fetch("/api/distribution",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)});const data=await response.json();if(!response.ok)throw Error(data.error);Plotly.newPlot("distribution_plot",[{x:data.radii_nm,y:data.number_weights,name:"Number weight",type:"bar"},{x:data.radii_nm,y:data.volume_weights,name:"Volume weight",type:"bar"}],{barmode:"group",margin:{t:25,b:45},xaxis:{title:"Radius (nm)"},yaxis:{title:"Bin probability"}})}catch(e){document.getElementById("status").textContent="Distribution preview: "+e.message}
 }
 for(const key of ["distribution","radius_nm","spread","second_radius_nm","mixture_fraction","histogram_radii_nm","histogram_number_weights"]){document.getElementById(key).addEventListener("change",previewDistribution)}
+document.getElementById("compare_fraction").onclick=async()=>{
+ const status=document.getElementById("fraction_compare_status");
+ const button=document.getElementById("compare_fraction");button.disabled=true;
+ try{
+ const p={};for(const key of keys)p[key]=document.getElementById(key).value;
+ addMaterialModels(p);
+ if(uploadedMaterials.host)p.host_material=uploadedMaterials.host;
+ if(uploadedMaterials.particle)p.particle_material=uploadedMaterials.particle;
+ const fs=[0,.05,.10,.20],traces=[],rows=[];
+ for(const fraction of fs){
+ status.textContent="Calculating fill factor "+(fraction*100)+"%…";
+ const response=await fetch("/api/calculate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...p,fraction})});
+ const d=await response.json();if(!response.ok)throw Error(d.error||"EMA calculation failed");
+ rows.push(d);
+ traces.push({x:d.wavelength_nm,y:d.effective_n,name:(fraction*100)+"% · n_eff",mode:"lines"});
+ }
+ Plotly.newPlot("fraction_compare_plot",traces,{title:"EMA comparison · "+p.method+" · f = 0–20%",xaxis:{title:"Wavelength (nm)"},yaxis:{title:"Effective refractive index"},paper_bgcolor:"#111f33",plot_bgcolor:"#111f33",font:{color:"#e7eefb"},margin:{t:55,r:20,b:55,l:65}});
+ const last=rows.map((d,i)=>"f="+(fs[i]*100)+"%: n_eff(λmin)="+Number(d.effective_n[0]).toFixed(5));
+ status.textContent="Four calculations completed. "+last.join(" | ")+" · No automatic model-validity claim.";
+ }catch(e){status.textContent="Comparison error: "+e.message}
+ finally{button.disabled=false}
+};
 document.getElementById("run").onclick=async()=>{
  const p={};for(const key of keys)p[key]=document.getElementById(key).value;
  try{addMaterialModels(p)}catch(e){document.getElementById("status").textContent="Invalid dispersion coefficients: "+e.message;return}
