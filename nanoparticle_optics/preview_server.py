@@ -19,6 +19,7 @@ from nanoparticle_optics.ellipsometry_inverse import fit_ellipsometry
 from nanoparticle_optics.ellipsometry_csv import parse_ellipsometry_csv
 from nanoparticle_optics.optical_csv import parse_optical_csv, interpolate_epsilon
 from nanoparticle_optics.film_tmm import film_rt
+from nanoparticle_optics.meep_colab import MeepJob, make_notebook
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -105,6 +106,17 @@ def validate_material():
         record=MaterialRecord.from_json(__import__("json").dumps(request.get_json(force=True)))
         csv,sidecar=export_fmm_material(record)
         return jsonify({"valid":True,"material_id":record.material_id,"fmm_csv":csv,"fmm_metadata_json":sidecar})
+    except (ValueError,TypeError,KeyError) as exc:
+        return jsonify({"error":str(exc)}),400
+
+@app.post("/api/meep/notebook")
+def meep_notebook_api():
+    try:
+        p=request.get_json(force=True)
+        if not p.pop("user_selected",False):
+            raise ValueError("User must explicitly request notebook generation")
+        job=MeepJob(**p).validate()
+        return jsonify({"job":job.job_dict(),"notebook":make_notebook(job)})
     except (ValueError,TypeError,KeyError) as exc:
         return jsonify({"error":str(exc)}),400
 
