@@ -16,6 +16,7 @@ from nanoparticle_optics.materials import MaterialRecord
 from nanoparticle_optics.fmm_interchange import export_fmm_material
 from nanoparticle_optics.meep2d import Meep2DJob
 from nanoparticle_optics.ellipsometry_inverse import fit_ellipsometry
+from nanoparticle_optics.ellipsometry_csv import parse_ellipsometry_csv
 
 app=Flask(__name__)
 ROOT=Path(__file__).resolve().parent
@@ -85,6 +86,15 @@ def export_meep2d():
         job=Meep2DJob(**request.get_json(force=True))
         return jsonify(__import__("json").loads(job.export_json()))
     except (ValueError,TypeError,PermissionError) as exc:
+        return jsonify({"error":str(exc)}),400
+
+@app.post("/api/ellipsometry/parse")
+def ellipsometry_parse_api():
+    try:
+        p=request.get_json(force=True)
+        if len(p["csv_text"])>2000000:raise ValueError("CSV exceeds 2 MB")
+        return jsonify(parse_ellipsometry_csv(p["csv_text"]))
+    except (ValueError,TypeError,KeyError) as exc:
         return jsonify({"error":str(exc)}),400
 
 @app.post("/api/ellipsometry/fit")
