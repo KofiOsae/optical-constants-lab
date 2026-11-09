@@ -11,8 +11,8 @@ SILICA_MALITSON={"model":"sellmeier","B":[0.6961663,0.4079426,0.8974794],
 
 def model_epsilon(model,wavelength_nm):
     wl=np.asarray(wavelength_nm,dtype=float)
-    if wl.ndim!=1 or len(wl)<2 or not np.all(np.isfinite(wl)) or np.any(wl<=0):
-        raise ValueError("Wavelength array must contain at least two positive finite values")
+    if wl.ndim!=1 or len(wl)<1 or not np.all(np.isfinite(wl)) or np.any(wl<=0):
+        raise ValueError("Wavelength array must contain at least one positive finite value")
     kind=model.get("model")
     if kind=="silica_malitson":
         model=SILICA_MALITSON
