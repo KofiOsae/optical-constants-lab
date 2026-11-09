@@ -82,6 +82,16 @@ sim.run(until_after_sources=100)
 field=np.asarray(sim.get_array(center=mp.Vector3(),size=mp.Vector3(side-2*j['pml_um'],side-2*j['pml_um'],0),component=component))
 plt.figure(figsize=(6,5));plt.imshow(field.T,origin='lower',cmap='RdBu');plt.colorbar(label=str(component));plt.title(f'{dim}D field slice');plt.show()
 """)
+    md("## Assisted numerical assessment\\nRepeat the simulation with higher resolution, larger padding and PML. "
+       "A field snapshot is not a scattering cross section or a converged quantitative observable.")
+    code("""print('Meep version:',getattr(mp,'__version__','unknown'))
+print('Geometry:',j['geometry'],'dimension:',dim,'resolution:',j['resolution_pixels_per_um'])
+print('Estimated grid cells:',round((side*j['resolution_pixels_per_um'])**dim))
+print('Field shape:',field.shape,'finite:',bool(np.all(np.isfinite(field))))
+if not np.all(np.isfinite(field)):
+    raise ValueError('Nonfinite simulated fields; check PML and numerical stability')
+print('Review: resolution convergence, PML reflection, background reference and incident normalization.')
+""")
     code("""import csv
 from google.colab import files
 name='ocl_meep_field_slice.csv'
