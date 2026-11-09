@@ -52,7 +52,7 @@ hr{border:0;border-top:1px solid #34465e}
 <label>Host k<input id="host_k" type="number" step=".01" value="0"></label>
 <label>Particle n<input id="particle_n" type="number" step=".01" value="2"></label>
 <label>Particle k<input id="particle_k" type="number" step=".01" value=".1"></label>
-<div class="level-banner">2 · Particle / aggregate optics <small>Size, shape assumptions, distributions and Mie scattering</small></div><label>Particle geometry<select id="particle_shape"><option value="sphere">Isolated homogeneous sphere · Mie</option><option value="spheroid">Spheroid · external solver required</option><option value="cylinder">Cylinder · external solver required</option><option value="irregular">Irregular · external solver required</option></select></label><label><input id="aggregate" type="checkbox"> Aggregated / coupled particles (external solver required)</label><label>Particle volume fraction / fill factor f (0–1)<input id="fraction" type="number" step=".01" min="0" max="1" value=".1"></label>
+<div class="level-banner">2 · Particle / aggregate optics <small>Size, shape assumptions, distributions and Mie scattering</small></div><label>Particle geometry<select id="particle_shape"><option value="sphere">Isolated homogeneous sphere · Mie</option><option value="spheroid">Spheroid · external solver required</option><option value="cylinder">Cylinder · external solver required</option><option value="irregular">Irregular · external solver required</option></select></label><label><input id="aggregate" type="checkbox"> Aggregated / coupled particles (external solver required)</label><p class="note" id="geometry_notice"></p><label>Particle volume fraction / fill factor f (0–1)<input id="fraction" type="number" step=".01" min="0" max="1" value=".1"></label>
 <label>Particle radius (nm)<input id="radius_nm" type="number" min=".1" value="30"></label>
 <label>Distribution<select id="distribution"><option value="single">Monodisperse</option><option value="lognormal">Lognormal</option><option value="normal">Gaussian (truncated)</option><option value="gamma">Gamma</option><option value="weibull">Weibull</option><option value="bimodal">Bimodal</option><option value="histogram">Experimental histogram</option></select></label>
 <label>Distribution relative spread<input id="spread" type="number" step=".05" min="0" value=".2"></label><label>Second radius for bimodal (nm)<input id="second_radius_nm" type="number" value="60"></label><label>Bimodal first-population fraction<input id="mixture_fraction" type="number" step=".1" value=".5"></label><label>Upload experimental size histogram (CSV)<input id="histogram_file" type="file" accept=".csv,text/csv"></label><p class="note">CSV columns: size_nm,count. Use radius_nm or diameter_nm for explicit geometry. For weighted measurements, use number_weight. DLS intensity_weight is not automatically converted to number weights.</p><label>Measured radius histogram (nm, comma-separated)<input id="histogram_radii_nm" placeholder="10,20,30"></label><label>Measured number counts (comma-separated)<input id="histogram_number_weights" placeholder="5,10,3"></label>
@@ -94,6 +94,32 @@ function initializeResearchWorkspace(){
    details.append(current);current=following;
   }
  }
+ // Show only parameters relevant to the selected particle distribution and constituent models.
+ function updateAdaptiveInputs(){
+  const dist=byId("distribution").value;
+  for(const id of ["spread","second_radius_nm","mixture_fraction","histogram_file","histogram_radii_nm","histogram_number_weights"]){
+   const visible=(id==="spread"&&!["single","histogram"].includes(dist))||
+    (["second_radius_nm","mixture_fraction"].includes(id)&&dist==="bimodal")||
+    (["histogram_file","histogram_radii_nm","histogram_number_weights"].includes(id)&&dist==="histogram");
+   const control=byId(id);const label=control.closest("label");if(label)label.hidden=!visible;
+  }
+  for(const kind of ["host","particle","pore"]){
+   const selected=byId(kind+"_model_kind").value;
+   byId(kind+"_model_json").hidden=!selected||selected==="silica_malitson";
+   if(kind==="pore")continue;
+   for(const suffix of ["n","k"]){const label=byId(kind+"_"+suffix).closest("label");if(label)label.hidden=!!selected||!!uploadedMaterials[kind]}
+  }
+  const poreActive=Number(byId("pore_fraction").value)>0;
+  for(const id of ["pore_n","pore_k","pore_model_kind","pore_model_json"]){
+   const element=byId(id);const label=element.closest("label");if(label)label.hidden=!poreActive;
+   else element.hidden=!poreActive||!byId("pore_model_kind").value;
+  }
+  const nonsphere=byId("particle_shape").value!=="sphere"||byId("aggregate").checked;
+  const note=byId("geometry_notice");if(note)note.textContent=nonsphere?"External geometry solver required. Spherical Mie scattering is intentionally unavailable; EMA film estimates remain approximations.":"Homogeneous-sphere Mie is available for a transparent host.";
+ }
+ for(const id of ["distribution","host_model_kind","particle_model_kind","pore_model_kind","pore_fraction","particle_shape","aggregate"])byId(id).addEventListener("change",updateAdaptiveInputs);
+ for(const id of ["host_material_file","particle_material_file"])byId(id).addEventListener("change",()=>setTimeout(updateAdaptiveInputs,250));
+ updateAdaptiveInputs();
  const comparison=byId("fill_comparison"),infiltration=byId("infiltration_comparison"),spectra=byId("spectra_group");
  function setAnalysisMode(){
   const mode=byId("analysis_mode").value;
@@ -195,7 +221,7 @@ document.getElementById("sensing_run").onclick=async()=>{
  try{
  if(document.getElementById("pore_model_kind").value)throw Error("Clear the pore dispersion model for this constant-index before/after comparison");
  const p={};for(const key of keys)p[key]=document.getElementById(key).value;
- addMaterialModels(p);p.aggregate=document.getElementById("aggregate").checked;
+ addMaterialModels(p);p.aggregate=document.getElementById("aggregate").checked;p.aggregate=document.getElementById("aggregate").checked;
  if(uploadedMaterials.host)p.host_material=uploadedMaterials.host;
  if(uploadedMaterials.particle)p.particle_material=uploadedMaterials.particle;
  const states=[["before","sensing_before_n","sensing_before_k"],["after","sensing_after_n","sensing_after_k"]];
@@ -263,7 +289,7 @@ document.getElementById("compare_fraction").onclick=async()=>{
 };
 document.getElementById("run").onclick=async()=>{
  const p={};for(const key of keys)p[key]=document.getElementById(key).value;
- try{addMaterialModels(p)}catch(e){document.getElementById("status").textContent="Invalid dispersion coefficients: "+e.message;return}
+ try{addMaterialModels(p);p.aggregate=document.getElementById("aggregate").checked}catch(e){document.getElementById("status").textContent="Invalid dispersion coefficients: "+e.message;return}
  if(uploadedMaterials.host)p.host_material=uploadedMaterials.host;
  if(uploadedMaterials.particle)p.particle_material=uploadedMaterials.particle;
  for(const key of ["histogram_radii_nm","histogram_number_weights"]){const v=document.getElementById(key).value.trim();if(v)p[key]=v.split(",").map(Number)}
